@@ -1,0 +1,16 @@
+[project]
+name = "flugblatt-praxisseminar"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.10"
+dependencies = [
+    "img2pdf",
+    "pikepdf",
+    "pillow",
+    "pypdf",
+    "python-dotenv",
+    "requests",
+]
+
+[tool.setuptools]
+packages = []
