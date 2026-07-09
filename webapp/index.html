@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>OCR Model Comparison</title>
+<link rel="stylesheet" href="/webapp/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="field">
+    <label for="doc-select">Document</label>
+    <select id="doc-select"></select>
+  </div>
+  <div class="field">
+    <label for="model-select">Model</label>
+    <select id="model-select"></select>
+  </div>
+  <div class="field page-nav">
+    <label for="page-input">Page</label>
+    <button id="prev-page" type="button">&larr;</button>
+    <input id="page-input" type="number" min="1" value="1" />
+    <span id="page-total">/ -</span>
+    <button id="next-page" type="button">&rarr;</button>
+  </div>
+  <div class="field">
+    <label><input type="checkbox" id="toggle-boxes" checked /> Show boxes</label>
+  </div>
+  <div id="status" class="status"></div>
+</header>
+
+<main class="panes">
+  <section class="pane pdf-pane">
+    <div id="pdf-wrap" class="pdf-wrap">
+      <canvas id="pdf-canvas"></canvas>
+      <div id="overlay" class="overlay"></div>
+    </div>
+  </section>
+  <section class="pane content-pane">
+    <div id="content-list" class="content-list"></div>
+  </section>
+</main>
+
+<script type="module" src="/webapp/app.js"></script>
+</body>
+</html>
