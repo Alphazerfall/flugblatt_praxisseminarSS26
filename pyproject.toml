@@ -10,6 +10,10 @@ dependencies = [
     "pypdf",
     "python-dotenv",
     "requests",
+    "mistralai",
+    "google-genai>=2.0.0",
+    "openai",
+    "pymupdf",
 ]
 
 [tool.setuptools]

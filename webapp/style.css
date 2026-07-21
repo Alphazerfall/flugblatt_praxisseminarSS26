@@ -1,15 +1,40 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   --bg: #1e1f22;
   --panel: #2a2b2f;
   --border: #3d3e42;
   --text: #e7e7e9;
   --muted: #9a9ba0;
   --accent: #7a9cc2;
+  --input-bg: #1e1f22;
+  --pdf-surround: #111;
+  --hover-tint: #ffffff0a;
+  --active-tint: #ffffff0f;
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* set explicitly by app.js on load (stored choice, else system preference)
+   and by the theme toggle — see initTheme()/applyTheme() in app.js. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0f2;
+  --panel: #ffffff;
+  --border: #d7dade;
+  --text: #1e2124;
+  --muted: #6b7078;
+  --accent: #3f6690;
+  --input-bg: #ffffff;
+  --pdf-surround: #d5d8dc;
+  --hover-tint: #0000000a;
+  --active-tint: #00000012;
+}
+
 * { box-sizing: border-box; }
+
+/* author `display` declarations otherwise beat the UA [hidden] rule even at
+   equal specificity, since author origin wins ties — so anything toggled via
+   the `hidden` attribute needs this reasserted explicitly. */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -40,7 +65,7 @@ body {
 .field label { color: var(--muted); }
 
 select, button, input {
-  background: #1e1f22;
+  background: var(--input-bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -79,23 +104,31 @@ button:hover { border-color: var(--accent); }
 .panes {
   flex: 1;
   display: flex;
+  flex-direction: column;
   min-height: 0;
 }
+
+.compare-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.compare-row + .compare-row { border-top: 1px solid var(--border); }
+
 
 .pane {
   flex: 1 1 50%;
   min-width: 0;
   overflow: auto;
-  border-right: 1px solid var(--border);
 }
-
-.pane:last-child { border-right: none; }
 
 .pdf-pane {
   display: flex;
   justify-content: center;
-  background: #111;
+  background: var(--pdf-surround);
   padding: 16px;
+  border-right: 1px solid var(--border);
 }
 
 .pdf-wrap {
@@ -105,7 +138,7 @@ button:hover { border-color: var(--accent); }
   height: fit-content;
 }
 
-#pdf-canvas {
+.pdf-wrap canvas {
   width: 100%;
   height: auto;
   display: block;
@@ -158,11 +191,11 @@ button:hover { border-color: var(--accent); }
   cursor: pointer;
 }
 
-.content-item:hover { background: #ffffff0a; }
+.content-item:hover { background: var(--hover-tint); }
 
 .content-item.active {
   border-color: var(--box-color, var(--accent));
-  background: #ffffff0f;
+  background: var(--active-tint);
 }
 
 .content-item .num {
@@ -179,6 +212,14 @@ button:hover { border-color: var(--accent); }
   align-items: center;
   justify-content: center;
   font-weight: 600;
+}
+
+/* the per-type palette (adapters.js) was tuned to pop against a dark panel;
+   on a white one the same medium-saturation colors read too washed out for
+   text, so darken just where --box-color is used as text/border, not where
+   it's a swatch or a badge with its own solid background. */
+:root[data-theme="light"] .content-item .num {
+  filter: brightness(0.72) saturate(1.2);
 }
 
 .content-item .body { min-width: 0; flex: 1; }
@@ -240,4 +281,39 @@ button:hover { border-color: var(--accent); }
   height: 8px;
   border-radius: 1px;
   background: var(--c);
+}
+
+.diff-pane { background: var(--panel); padding: 8px 12px; }
+
+.diff-legend {
+  display: flex;
+  gap: 14px;
+  padding: 0 2px 8px 2px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.diff-legend .chip { display: inline-flex; align-items: center; gap: 5px; }
+
+.diff-content {
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.diff-content .diff-eq { color: var(--text); }
+
+.diff-content .diff-del {
+  color: #c17b7b;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #c17b7b 60%, transparent);
+  opacity: 0.75;
+}
+
+.diff-content .diff-ins {
+  color: #72a396;
+  background: color-mix(in srgb, #72a396 14%, transparent);
+  border-radius: 2px;
 }

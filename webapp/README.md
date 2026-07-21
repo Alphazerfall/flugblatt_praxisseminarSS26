@@ -5,6 +5,24 @@ PaddleOCR, GLM-OCR, ...) against the source PDF: page on the left with
 detected boxes overlaid, extracted content on the right, numbered and synced
 by hover/click — same idea as Datalab's own playground UI.
 
+The **View** dropdown switches between three ways of comparing the current
+document's models, all sharing the same document/page navigation:
+- **Single** — one model, the layout described above.
+- **Side-by-side** — two full model rows (PDF+boxes | content) stacked, model
+  A on top and "Compare with" (model B) below, so misaligned/missed regions
+  are visible at a glance without flipping the dropdown back and forth.
+- **Word diff** — model A's PDF+boxes on the left; on the right, a word-level
+  diff of the two models' extracted text for the current page (LCS-based,
+  `diff.js`), red/struck-through for text only in A, green for text only in
+  B, unstyled where they agree.
+
+The **Light mode** checkbox toggles the theme; the choice is remembered
+(`localStorage`) and otherwise defaults to the OS's `prefers-color-scheme`.
+Applied via a `data-theme` attribute on `<html>` — see the inline `<script>`
+at the top of `index.html` (sets it synchronously, before first paint, so
+there's no flash of the wrong theme) and the `:root[data-theme="light"]`
+overrides in `style.css`.
+
 ## Run
 
 ```bash
@@ -13,7 +31,10 @@ python webapp/server.py           # defaults to port 8000
 
 Open http://127.0.0.1:8000/. The document list is built by scanning `data/`
 fresh on every page load, so newly generated OCR output shows up on refresh
-with no restart needed.
+with no restart needed. `test_set` loads by default if present (falls back to
+the first document found otherwise); the model dropdown always shows the raw
+output-directory name (e.g. "jsonMistral", "MinerU") so it's obvious which
+folder on disk a given entry came from.
 
 ## Adding a model's output
 
@@ -48,12 +69,23 @@ rendering: `{ pages: [{ width, height, blocks: [{ id, type,
 bbox: [x0,y0,x1,y1], html }] }] }` (bbox is in the same coordinate space as
 the page's width/height — only the ratio matters, not the unit).
 
-- **Single JSON file per document** (Datalab, MinerU): add an adapter in
-  `adapters.js` — implement `matches(data)` and `normalize(data,
-  pdfPageSizes)` — and register it in the `ADAPTERS` list. `normalize` is
-  tried against whatever `JSON.parse` of the fetched file produces;
-  auto-detected by `matches()`, no manifest changes needed as long as the
-  file is named `<doc_id>.json` (or `<doc_id>/<model>.json`).
+- **Single JSON file per document** (Datalab, MinerU, Mistral, Gemini): add
+  an adapter in `adapters.js` — implement `matches(data)` and
+  `normalize(data, pdfPageSizes)` — and register it in the `ADAPTERS` list.
+  `normalize` is tried against whatever `JSON.parse` of the fetched file
+  produces; auto-detected by `matches()`, no manifest changes needed as long
+  as the file is named `<doc_id>.json` (or `<doc_id>/<model>.json`).
+  - Mistral (`{ pages: [{ index, markdown, blocks?, dimensions? }] }`) uses
+    real per-block boxes (`blocks[].top_left_x/y, bottom_right_x/y` in the
+    coordinate space given by `dimensions.{width,height}`) when a page has
+    them, falling back to the whole-page `markdown` blob (no boxes) for
+    pages/runs that don't — the format has grown richer between runs, this
+    adapter still handles the earlier markdown-only shape.
+  - Gemini (`{ model, text }`) is one markdown blob for the whole document
+    with `### Page N` / `# Seite N` headings as page separators — matched
+    loosely (any heading level, "Page" or "Seite") since the exact wording
+    has already varied between runs. No boxes; reuses `markdownToHtml()`,
+    same as the markdown-only formats below, just JSON-wrapped.
 - **One JSON file per page** (PaddleOCR): `matches(data)` receives the array
   of all per-page files' parsed JSON instead of a single object. Wire the
   folder up in `manifest.py`'s `_scan_dir` the way PaddleOCR's
@@ -79,5 +111,6 @@ the page's width/height — only the ratio matters, not the unit).
 - `manifest.py` — scans `data/` for documents and their per-model JSON outputs
 - `index.html` / `style.css` / `app.js` — the frontend
 - `adapters.js` — per-model JSON → common shape normalization
+- `diff.js` — word-level LCS diff between two models' extracted page text
 - `sanitize.js` — whitelist HTML sanitizer for rendering block content
 - `vendor/` — vendored pdf.js (ESM build)

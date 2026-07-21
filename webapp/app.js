@@ -1,6 +1,7 @@
 import * as pdfjsLib from "/webapp/vendor/pdf.min.mjs";
 import { normalize, normalizeMarkdown, normalizeTextPages, colorFor, legendEntries } from "/webapp/adapters.js";
 import { sanitizeHtml } from "/webapp/sanitize.js";
+import { pageText, wordDiffHtml } from "/webapp/diff.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/webapp/vendor/pdf.worker.min.mjs";
 
@@ -9,18 +10,36 @@ const RENDER_SCALE = 2; // fixed internal resolution; CSS scales the canvas to f
 const el = {
   docSelect: document.getElementById("doc-select"),
   modelSelect: document.getElementById("model-select"),
+  modelSelectB: document.getElementById("model-select-b"),
+  modelBField: document.getElementById("model-b-field"),
+  compareMode: document.getElementById("compare-mode"),
   prevPage: document.getElementById("prev-page"),
   nextPage: document.getElementById("next-page"),
   pageInput: document.getElementById("page-input"),
   pageTotal: document.getElementById("page-total"),
   toggleBoxes: document.getElementById("toggle-boxes"),
+  themeToggle: document.getElementById("theme-toggle"),
   status: document.getElementById("status"),
-  canvas: document.getElementById("pdf-canvas"),
-  overlay: document.getElementById("overlay"),
-  contentList: document.getElementById("content-list"),
+  rowB: document.getElementById("row-b"),
+  contentPaneA: document.getElementById("content-pane-a"),
+  diffPane: document.getElementById("diff-pane"),
+  diffLegend: document.getElementById("diff-legend"),
+  diffContent: document.getElementById("diff-content"),
+  canvasA: document.getElementById("pdf-canvas-a"),
+  overlayA: document.getElementById("overlay-a"),
+  contentListA: document.getElementById("content-list-a"),
+  canvasB: document.getElementById("pdf-canvas-b"),
+  overlayB: document.getElementById("overlay-b"),
+  contentListB: document.getElementById("content-list-b"),
 };
 
-const ctx = el.canvas.getContext("2d");
+// Two independent render "slots" — A is always shown, B only in side-by-side
+// mode. Each pane tracks its own overlay-box/content-item elements so hover
+// sync (setActive) doesn't cross-wire between the two.
+const panes = {
+  a: { key: "a", canvas: el.canvasA, ctx: el.canvasA.getContext("2d"), overlay: el.overlayA, contentList: el.contentListA, boxEls: [], itemEls: [] },
+  b: { key: "b", canvas: el.canvasB, ctx: el.canvasB.getContext("2d"), overlay: el.overlayB, contentList: el.contentListB, boxEls: [], itemEls: [] },
+};
 
 const state = {
   manifest: null,
@@ -29,14 +48,38 @@ const state = {
   pageNum: 1, // 1-indexed, matches pdfjs
   numPages: 0,
   pdfPageSizes: [], // [{width,height}, ...] in PDF points, 0-indexed; fallback reference for formats without their own page size
-  modelData: null, // normalized { pages: [...] } for the selected model
-  baseUrl: "", // directory the current model's output lives in (for image src)
+  compareMode: "single", // "single" | "side" | "diff"
+  a: { model: null, data: null, baseUrl: "" },
+  b: { model: null, data: null, baseUrl: "" },
   renderToken: 0, // guards against races when switching pages/models fast
 };
 
 function setStatus(msg) {
   el.status.textContent = msg || "";
 }
+
+// ---------- theme ----------
+// index.html applies the stored/system theme synchronously (before paint)
+// via an inline <script> so there's no flash of the wrong theme; this just
+// syncs the toggle's checked state to whatever was already applied and
+// handles switching it afterward.
+const THEME_KEY = "ocr-compare-theme";
+el.themeToggle.checked = document.documentElement.dataset.theme === "light";
+el.themeToggle.addEventListener("change", () => {
+  const theme = el.themeToggle.checked ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+});
+
+// Last-resort net: data/ is rewritten live by external pipeline scripts
+// while this app is open, so requests can fail in places that are awkward
+// to individually guard (e.g. mid-write file reads). Without this, such a
+// rejection is silent — console-only — and the UI is left looking "empty"
+// with no clue why.
+window.addEventListener("unhandledrejection", (event) => {
+  setStatus(`Unexpected error: ${event.reason?.message || event.reason}`);
+  console.error(event.reason);
+});
 
 async function loadManifest() {
   const res = await fetch("/api/manifest");
@@ -66,41 +109,73 @@ function findDoc(key) {
   return state.manifest.documents.find((d) => `${d.dataset}/${d.id}` === key);
 }
 
-async function selectDocument(key) {
+function populateModelSelect(selectEl, models) {
+  selectEl.innerHTML = "";
+  if (models.length === 0) {
+    const opt = document.createElement("option");
+    opt.textContent = "(no OCR output for this document)";
+    selectEl.appendChild(opt);
+    selectEl.disabled = true;
+    return;
+  }
+  selectEl.disabled = false;
+  models.forEach((m, i) => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = m.name;
+    selectEl.appendChild(opt);
+  });
+}
+
+// opts.modelName / opts.modelBName let a caller (deep-link restore) pick the
+// actual wanted models up front, instead of loading the defaults first and
+// immediately discarding that work — for per-page formats (GLM-OCR,
+// PaddleOCR) a discarded default load means dozens of wasted requests.
+async function selectDocument(key, opts = {}) {
   const doc = findDoc(key);
   if (!doc) return;
   state.doc = doc;
-  state.modelData = null;
-  state.baseUrl = "";
 
-  el.modelSelect.innerHTML = "";
-  if (doc.models.length === 0) {
-    const opt = document.createElement("option");
-    opt.textContent = "(no OCR output for this document)";
-    el.modelSelect.appendChild(opt);
-    el.modelSelect.disabled = true;
-  } else {
-    el.modelSelect.disabled = false;
-    doc.models.forEach((m, i) => {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = m.name;
-      el.modelSelect.appendChild(opt);
-    });
-  }
+  populateModelSelect(el.modelSelect, doc.models);
+  populateModelSelect(el.modelSelectB, doc.models);
 
   setStatus(`Loading ${doc.id}.pdf ...`);
-  const loadingTask = pdfjsLib.getDocument({ url: doc.pdf_url });
-  state.pdf = await loadingTask.promise;
+  state.pdf = null;
+  state.numPages = 0;
+  try {
+    // data/ can be actively rewritten by external OCR pipeline scripts
+    // while this runs, so a PDF read can transiently fail mid-write; one
+    // retry after a beat is usually enough for that to have settled.
+    state.pdf = await loadPdfWithRetry(doc.pdf_url);
+  } catch (err) {
+    setStatus(`Failed to load ${doc.id}.pdf: ${err.message}`);
+    return;
+  }
   state.numPages = state.pdf.numPages;
   state.pageNum = 1;
   state.pdfPageSizes = await getPdfPageSizes(state.pdf);
   setStatus("");
 
-  if (doc.models.length > 0) {
-    await selectModel(doc.models[0]);
-  } else {
-    await renderPage();
+  const byName = (name) => name && doc.models.find((m) => m.name === name);
+  const modelA = byName(opts.modelName) || doc.models[0] || null;
+  const modelB = byName(opts.modelBName) || doc.models.find((m) => m !== modelA) || doc.models[0] || null;
+  await setSlotModel("a", modelA);
+  await setSlotModel("b", modelB);
+
+  const idxA = doc.models.indexOf(state.a.model);
+  const idxB = doc.models.indexOf(state.b.model);
+  if (idxA >= 0) el.modelSelect.value = idxA;
+  if (idxB >= 0) el.modelSelectB.value = idxB;
+
+  await renderAll();
+}
+
+async function loadPdfWithRetry(url) {
+  try {
+    return await pdfjsLib.getDocument({ url }).promise;
+  } catch (err) {
+    await new Promise((r) => setTimeout(r, 700));
+    return await pdfjsLib.getDocument({ url }).promise; // let this one's rejection propagate if it also fails
   }
 }
 
@@ -114,76 +189,108 @@ async function getPdfPageSizes(pdf) {
   return sizes;
 }
 
-async function selectModel(model) {
+async function loadModelOutput(model) {
+  if (model.kind === "markdown") {
+    const res = await fetch(model.md_url);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return normalizeMarkdown(await res.text());
+  }
+  if (model.kind === "text_pages") {
+    const texts = await Promise.all(model.txt_urls.map(async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+      return res.text();
+    }));
+    return normalizeTextPages(texts);
+  }
+  if (model.kind === "json_pages") {
+    const jsons = await Promise.all(model.json_urls.map(async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
+      return res.json();
+    }));
+    return normalize(jsons, state.pdfPageSizes).data;
+  }
+  const res = await fetch(model.json_url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return normalize(await res.json(), state.pdfPageSizes).data;
+}
+
+async function setSlotModel(slot, model) {
+  const s = state[slot];
+  s.model = model;
   if (!model) {
-    state.modelData = null;
-    state.baseUrl = "";
-    await renderPage();
+    s.data = null;
+    s.baseUrl = "";
     return;
   }
   setStatus(`Loading ${model.name} output ...`);
   try {
-    let data;
-    if (model.kind === "markdown") {
-      const res = await fetch(model.md_url);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      data = normalizeMarkdown(await res.text());
-    } else if (model.kind === "text_pages") {
-      const texts = await Promise.all(model.txt_urls.map(async (url) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-        return res.text();
-      }));
-      data = normalizeTextPages(texts);
-    } else if (model.kind === "json_pages") {
-      const jsons = await Promise.all(model.json_urls.map(async (url) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${url}: ${res.status} ${res.statusText}`);
-        return res.json();
-      }));
-      data = normalize(jsons, state.pdfPageSizes).data;
-    } else {
-      const res = await fetch(model.json_url);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      data = normalize(await res.json(), state.pdfPageSizes).data;
-    }
-    state.modelData = data;
-    state.baseUrl = model.base_url;
+    s.data = await loadModelOutput(model);
+    s.baseUrl = model.base_url;
     setStatus("");
   } catch (err) {
-    state.modelData = null;
-    state.baseUrl = "";
+    s.data = null;
+    s.baseUrl = "";
     setStatus(`Failed to load/parse ${model.name} output: ${err.message}`);
   }
-  await renderPage();
 }
 
-async function renderPage() {
+async function renderAll() {
   const token = ++state.renderToken;
   if (!state.pdf) return;
 
-  const page = await state.pdf.getPage(state.pageNum);
-  if (token !== state.renderToken) return;
+  try {
+    await renderPanePdf(panes.a, token);
+    if (token !== state.renderToken) return;
+    renderPaneOverlayAndContent(panes.a, state.a.data, state.a.baseUrl);
 
-  const viewport = page.getViewport({ scale: RENDER_SCALE });
-  el.canvas.width = viewport.width;
-  el.canvas.height = viewport.height;
-
-  await page.render({ canvasContext: ctx, viewport }).promise;
+    if (state.compareMode === "side") {
+      await renderPanePdf(panes.b, token);
+      if (token !== state.renderToken) return;
+      renderPaneOverlayAndContent(panes.b, state.b.data, state.b.baseUrl);
+    } else if (state.compareMode === "diff") {
+      renderDiff();
+    }
+  } catch (err) {
+    // most likely the PDF page failed mid-render (e.g. data/ was being
+    // rewritten by an external pipeline at the exact moment we read it) —
+    // report it instead of leaving the canvas in a half-drawn state with no
+    // explanation.
+    setStatus(`Render failed: ${err.message}`);
+    console.error(err);
+    return;
+  }
   if (token !== state.renderToken) return;
 
   el.pageInput.value = state.pageNum;
   el.pageInput.max = state.numPages;
   el.pageTotal.textContent = `/ ${state.numPages}`;
-
-  const pageData = state.modelData ? state.modelData.pages[state.pageNum - 1] : null;
-  renderOverlay(pageData);
-  renderContentList(pageData);
 }
 
-function renderOverlay(pageData) {
-  el.overlay.innerHTML = "";
-  boxEls = [];
+async function renderPanePdf(pane, token) {
+  const page = await state.pdf.getPage(state.pageNum);
+  if (token !== state.renderToken) return;
+  const viewport = page.getViewport({ scale: RENDER_SCALE });
+  pane.canvas.width = viewport.width;
+  pane.canvas.height = viewport.height;
+  await page.render({ canvasContext: pane.ctx, viewport }).promise;
+}
+
+function renderPaneOverlayAndContent(pane, modelData, baseUrl) {
+  const pageData = modelData ? modelData.pages[state.pageNum - 1] : null;
+  renderOverlay(pane, pageData);
+  renderContentList(pane, pageData, baseUrl);
+}
+
+function setActive(pane, idx) {
+  pane.boxEls.forEach((b, i) => b.classList.toggle("active", i === idx));
+  pane.itemEls.forEach((c, i) => c.classList.toggle("active", i === idx));
+}
+
+function renderOverlay(pane, pageData) {
+  pane.overlay.innerHTML = "";
+  pane.boxEls = [];
   if (!pageData) return;
 
   pageData.blocks.forEach((block, i) => {
@@ -202,29 +309,21 @@ function renderOverlay(pageData) {
     badge.textContent = i + 1;
     box.appendChild(badge);
 
-    box.addEventListener("mouseenter", () => setActive(i));
-    box.addEventListener("mouseleave", () => setActive(-1));
+    box.addEventListener("mouseenter", () => setActive(pane, i));
+    box.addEventListener("mouseleave", () => setActive(pane, -1));
     box.addEventListener("click", () => {
-      setActive(i);
-      itemEls[i]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setActive(pane, i);
+      pane.itemEls[i]?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
 
-    el.overlay.appendChild(box);
-    boxEls.push(box);
+    pane.overlay.appendChild(box);
+    pane.boxEls.push(box);
   });
 }
 
-let boxEls = [];
-let itemEls = [];
-
-function setActive(idx) {
-  boxEls.forEach((b, i) => b.classList.toggle("active", i === idx));
-  itemEls.forEach((c, i) => c.classList.toggle("active", i === idx));
-}
-
-function renderContentList(pageData) {
-  itemEls = [];
-  el.contentList.innerHTML = "";
+function renderContentList(pane, pageData, baseUrl) {
+  pane.itemEls = [];
+  pane.contentList.innerHTML = "";
 
   if (!pageData) {
     const msg = document.createElement("div");
@@ -232,7 +331,7 @@ function renderContentList(pageData) {
     msg.textContent = state.doc && state.doc.models.length === 0
       ? "No OCR output found for this document yet."
       : "No content detected on this page.";
-    el.contentList.appendChild(msg);
+    pane.contentList.appendChild(msg);
     return;
   }
 
@@ -244,7 +343,7 @@ function renderContentList(pageData) {
     chip.innerHTML = `<span class="swatch" style="--c:${color}"></span>${type}`;
     legend.appendChild(chip);
   }
-  el.contentList.appendChild(legend);
+  pane.contentList.appendChild(legend);
 
   pageData.blocks.forEach((block, i) => {
     const item = document.createElement("div");
@@ -262,26 +361,63 @@ function renderContentList(pageData) {
     tag.textContent = block.type;
     const html = document.createElement("div");
     html.className = "html-content";
-    html.innerHTML = sanitizeHtml(block.html, state.baseUrl);
+    html.innerHTML = sanitizeHtml(block.html, baseUrl);
 
     body.appendChild(tag);
     body.appendChild(html);
     item.appendChild(num);
     item.appendChild(body);
 
-    item.addEventListener("mouseenter", () => setActive(i));
-    item.addEventListener("mouseleave", () => setActive(-1));
+    item.addEventListener("mouseenter", () => setActive(pane, i));
+    item.addEventListener("mouseleave", () => setActive(pane, -1));
 
-    el.contentList.appendChild(item);
-    itemEls.push(item);
+    pane.contentList.appendChild(item);
+    pane.itemEls.push(item);
   });
 }
 
-// ---------- deep-linking (?doc=<dataset>/<id>&model=<name>&page=<n>) ----------
+// ---------- word diff (view: diff) ----------
+function diffChip(color, label) {
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  const swatch = document.createElement("span");
+  swatch.className = "swatch";
+  swatch.style.setProperty("--c", color);
+  chip.appendChild(swatch);
+  chip.append(label);
+  return chip;
+}
+
+function renderDiff() {
+  const pageIdx = state.pageNum - 1;
+  const textA = pageText(state.a.data, pageIdx);
+  const textB = pageText(state.b.data, pageIdx);
+
+  el.diffLegend.innerHTML = "";
+  el.diffLegend.appendChild(diffChip("#c17b7b", `${state.a.model?.name || "A"} only`));
+  el.diffLegend.appendChild(diffChip("#72a396", `${state.b.model?.name || "B"} only`));
+
+  el.diffContent.innerHTML = wordDiffHtml(textA, textB);
+}
+
+// ---------- view mode ----------
+function updateLayout() {
+  const mode = state.compareMode;
+  el.rowB.hidden = mode !== "side";
+  el.diffPane.hidden = mode !== "diff";
+  el.contentPaneA.hidden = mode === "diff";
+  el.modelBField.hidden = mode === "single";
+}
+
+// ---------- deep-linking (?doc=<dataset>/<id>&model=<name>&mode=<m>&modelB=<name>&page=<n>) ----------
 function updateUrl() {
   const params = new URLSearchParams();
   if (state.doc) params.set("doc", `${state.doc.dataset}/${state.doc.id}`);
-  if (el.modelSelect.value) params.set("model", el.modelSelect.selectedOptions[0]?.textContent || "");
+  if (state.a.model) params.set("model", state.a.model.name);
+  if (state.compareMode !== "single") {
+    params.set("mode", state.compareMode);
+    if (state.b.model) params.set("modelB", state.b.model.name);
+  }
   if (state.pageNum) params.set("page", state.pageNum);
   history.replaceState(null, "", `?${params.toString()}`);
 }
@@ -292,9 +428,22 @@ el.docSelect.addEventListener("change", async () => {
   updateUrl();
 });
 el.modelSelect.addEventListener("change", async () => {
-  await selectModel(state.doc?.models[Number(el.modelSelect.value)]);
+  await setSlotModel("a", state.doc?.models[Number(el.modelSelect.value)]);
+  await renderAll();
   updateUrl();
 });
+el.modelSelectB.addEventListener("change", async () => {
+  await setSlotModel("b", state.doc?.models[Number(el.modelSelectB.value)]);
+  await renderAll();
+  updateUrl();
+});
+el.compareMode.addEventListener("change", async () => {
+  state.compareMode = el.compareMode.value;
+  updateLayout();
+  await renderAll();
+  updateUrl();
+});
+
 function goToPage(n) {
   n = Math.min(Math.max(Math.trunc(n) || 1, 1), state.numPages || 1);
   if (n === state.pageNum) {
@@ -302,7 +451,7 @@ function goToPage(n) {
     return;
   }
   state.pageNum = n;
-  renderPage();
+  renderAll();
   updateUrl();
 }
 el.prevPage.addEventListener("click", () => goToPage(state.pageNum - 1));
@@ -316,7 +465,9 @@ el.pageInput.addEventListener("keydown", (e) => {
   }
 });
 el.toggleBoxes.addEventListener("change", () => {
-  el.overlay.style.display = el.toggleBoxes.checked ? "" : "none";
+  const show = el.toggleBoxes.checked;
+  el.overlayA.style.display = show ? "" : "none";
+  el.overlayB.style.display = show ? "" : "none";
 });
 
 (async function init() {
@@ -329,23 +480,25 @@ el.toggleBoxes.addEventListener("change", () => {
     const params = new URLSearchParams(location.search);
     const requestedDoc = params.get("doc");
     const hasDoc = requestedDoc && findDoc(requestedDoc);
-    const target = hasDoc ? requestedDoc : `${state.manifest.documents[0].dataset}/${state.manifest.documents[0].id}`;
+    const defaultDoc = state.manifest.documents.find((d) => d.id === "test_set") || state.manifest.documents[0];
+    const target = hasDoc ? requestedDoc : `${defaultDoc.dataset}/${defaultDoc.id}`;
     el.docSelect.value = target;
-    await selectDocument(target);
 
-    const requestedModel = params.get("model");
-    if (requestedModel) {
-      const idx = state.doc?.models.findIndex((m) => m.name === requestedModel);
-      if (idx >= 0) {
-        el.modelSelect.value = idx;
-        await selectModel(state.doc.models[idx]);
-      }
+    const requestedMode = params.get("mode");
+    if (requestedMode === "side" || requestedMode === "diff") {
+      state.compareMode = requestedMode;
+      el.compareMode.value = requestedMode;
     }
+    updateLayout();
+
+    // pass the requested models straight in so a deep link doesn't first
+    // load the default model(s) only to immediately discard that work
+    await selectDocument(target, { modelName: params.get("model"), modelBName: params.get("modelB") });
 
     const requestedPage = parseInt(params.get("page"), 10);
     if (requestedPage >= 1 && requestedPage <= state.numPages) {
       state.pageNum = requestedPage;
-      await renderPage();
+      await renderAll();
     }
 
     updateUrl();

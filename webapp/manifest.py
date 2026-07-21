@@ -12,9 +12,10 @@ Recognized layouts, checked per candidate directory in this order:
        data/<dataset>/<doc_id>/<doc_id>.json     # datalab_convert.py default
        data/<dataset>/output/<doc_id>.json
        data/<dataset>/jsonDatalab/<doc_id>.json
-     Model name: the containing folder name (stripped of a leading
-     "json"/"markdown"/"html"), or "datalab" if the folder is named after
-     the doc id itself or generically (e.g. "output").
+     Model name is always the containing folder name verbatim (e.g.
+     "jsonDatalab", "output", or the doc id itself for the first layout
+     above) — dropdown labels are meant to read as "which folder is this",
+     not a prettified guess.
 
   2. `<doc_id>/<model>.json` (explicit multi-model layout, stem != doc id)
        data/<dataset>/<doc_id>/glm.json          -> model "glm"
@@ -91,19 +92,6 @@ def _numbered_txt_files(directory: Path) -> list[tuple[int, Path]]:
     return pages
 
 
-def _model_name_for_exact(json_path: Path, doc_id: str) -> str:
-    parent_name = json_path.parent.name
-    if parent_name == doc_id:
-        return "datalab"  # legacy <doc_id>/<doc_id>.json layout
-
-    cleaned = parent_name
-    for prefix in ("json", "markdown", "html"):
-        if cleaned.lower().startswith(prefix):
-            cleaned = cleaned[len(prefix):]
-            break
-    return cleaned or "datalab"
-
-
 def _scan_dir(directory: Path, doc_id: str) -> list[ModelOutput]:
     models: list[ModelOutput] = []
     found_json = False
@@ -111,8 +99,8 @@ def _scan_dir(directory: Path, doc_id: str) -> list[ModelOutput]:
     # 1. <doc_id>.json
     for json_path in sorted(directory.glob(f"{doc_id}.json")):
         models.append(ModelOutput(
-            name=_model_name_for_exact(json_path, doc_id),
-            kind="json", base_dir=json_path.parent, json_path=json_path,
+            name=directory.name, kind="json",
+            base_dir=json_path.parent, json_path=json_path,
         ))
         found_json = True
 
@@ -185,8 +173,16 @@ def scan(data_root: Path) -> list[Document]:
             dataset = "(root)"
 
         doc = Document(id=doc_id, dataset=dataset, pdf_path=pdf_path)
-        for directory in _candidate_dirs(pdf_path):
-            doc.models.extend(_scan_dir(directory, doc_id))
+        try:
+            for directory in _candidate_dirs(pdf_path):
+                doc.models.extend(_scan_dir(directory, doc_id))
+        except OSError:
+            # data/ is being actively written by external OCR pipeline
+            # scripts while this scan runs; a directory can vanish or be
+            # mid-rename between the rglob() above and here. Show the
+            # document with whatever models were already found rather than
+            # failing the whole /api/manifest request over one bad path.
+            pass
 
         # de-dupe by document id; if the same id appears in two dataset
         # folders (shouldn't normally happen), keep the first and skip.

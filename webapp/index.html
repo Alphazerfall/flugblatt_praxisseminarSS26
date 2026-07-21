@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <title>OCR Model Comparison</title>
+<script>
+  // applied synchronously, before CSS paints, so there's no flash of the
+  // wrong theme while app.js (a deferred module script) is still loading
+  (function () {
+    var stored = localStorage.getItem("ocr-compare-theme");
+    var theme = stored || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
 <link rel="stylesheet" href="/webapp/style.css" />
 </head>
 <body>
@@ -15,6 +24,18 @@
     <label for="model-select">Model</label>
     <select id="model-select"></select>
   </div>
+  <div class="field">
+    <label for="compare-mode">View</label>
+    <select id="compare-mode">
+      <option value="single">Single</option>
+      <option value="side">Side-by-side</option>
+      <option value="diff">Word diff</option>
+    </select>
+  </div>
+  <div class="field" id="model-b-field" hidden>
+    <label for="model-select-b">Compare with</label>
+    <select id="model-select-b"></select>
+  </div>
   <div class="field page-nav">
     <label for="page-input">Page</label>
     <button id="prev-page" type="button">&larr;</button>
@@ -25,19 +46,39 @@
   <div class="field">
     <label><input type="checkbox" id="toggle-boxes" checked /> Show boxes</label>
   </div>
+  <div class="field">
+    <label><input type="checkbox" id="theme-toggle" /> Light mode</label>
+  </div>
   <div id="status" class="status"></div>
 </header>
 
-<main class="panes">
-  <section class="pane pdf-pane">
-    <div id="pdf-wrap" class="pdf-wrap">
-      <canvas id="pdf-canvas"></canvas>
-      <div id="overlay" class="overlay"></div>
-    </div>
-  </section>
-  <section class="pane content-pane">
-    <div id="content-list" class="content-list"></div>
-  </section>
+<main class="panes" id="main">
+  <div class="compare-row" id="row-a">
+    <section class="pane pdf-pane">
+      <div class="pdf-wrap">
+        <canvas id="pdf-canvas-a"></canvas>
+        <div id="overlay-a" class="overlay"></div>
+      </div>
+    </section>
+    <section class="pane content-pane" id="content-pane-a">
+      <div id="content-list-a" class="content-list"></div>
+    </section>
+    <section class="pane diff-pane" id="diff-pane" hidden>
+      <div id="diff-legend" class="diff-legend"></div>
+      <div id="diff-content" class="diff-content"></div>
+    </section>
+  </div>
+  <div class="compare-row" id="row-b" hidden>
+    <section class="pane pdf-pane">
+      <div class="pdf-wrap">
+        <canvas id="pdf-canvas-b"></canvas>
+        <div id="overlay-b" class="overlay"></div>
+      </div>
+    </section>
+    <section class="pane content-pane" id="content-pane-b">
+      <div id="content-list-b" class="content-list"></div>
+    </section>
+  </div>
 </main>
 
 <script type="module" src="/webapp/app.js"></script>
