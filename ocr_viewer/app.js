@@ -1,9 +1,9 @@
-import * as pdfjsLib from "/webapp/vendor/pdf.min.mjs";
-import { normalize, normalizeMarkdown, normalizeTextPages, colorFor, legendEntries } from "/webapp/adapters.js";
-import { sanitizeHtml } from "/webapp/sanitize.js";
-import { pageText, wordDiffHtml } from "/webapp/diff.js";
+import * as pdfjsLib from "/ocr_viewer/vendor/pdf.min.mjs";
+import { normalize, normalizeMarkdown, normalizeTextPages, colorFor, legendEntries } from "/ocr_viewer/adapters.js";
+import { sanitizeHtml } from "/ocr_viewer/sanitize.js";
+import { pageText, wordDiffHtml } from "/ocr_viewer/diff.js";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/webapp/vendor/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/ocr_viewer/vendor/pdf.worker.min.mjs";
 
 const RENDER_SCALE = 2; // fixed internal resolution; CSS scales the canvas to fit the pane
 
@@ -37,8 +37,8 @@ const el = {
 // mode. Each pane tracks its own overlay-box/content-item elements so hover
 // sync (setActive) doesn't cross-wire between the two.
 const panes = {
-  a: { key: "a", canvas: el.canvasA, ctx: el.canvasA.getContext("2d"), overlay: el.overlayA, contentList: el.contentListA, boxEls: [], itemEls: [] },
-  b: { key: "b", canvas: el.canvasB, ctx: el.canvasB.getContext("2d"), overlay: el.overlayB, contentList: el.contentListB, boxEls: [], itemEls: [] },
+  a: { key: "a", canvas: el.canvasA, ctx: el.canvasA.getContext("2d"), overlay: el.overlayA, contentList: el.contentListA, boxEls: [], itemEls: [], renderTask: null },
+  b: { key: "b", canvas: el.canvasB, ctx: el.canvasB.getContext("2d"), overlay: el.overlayB, contentList: el.contentListB, boxEls: [], itemEls: [], renderTask: null },
 };
 
 const state = {
@@ -193,7 +193,7 @@ async function loadModelOutput(model) {
   if (model.kind === "markdown") {
     const res = await fetch(model.md_url);
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return normalizeMarkdown(await res.text());
+    return normalizeMarkdown(await res.text(), state.numPages);
   }
   if (model.kind === "text_pages") {
     const texts = await Promise.all(model.txt_urls.map(async (url) => {
@@ -271,10 +271,35 @@ async function renderAll() {
 async function renderPanePdf(pane, token) {
   const page = await state.pdf.getPage(state.pageNum);
   if (token !== state.renderToken) return;
+
+  // goToPage()'s click/keydown handlers fire renderAll() without awaiting
+  // it, so a fast prev/next click (or Enter in the page box) can start a
+  // second render on this same canvas before the first one finishes — pdf.js
+  // rejects that outright ("Cannot use the same canvas during multiple
+  // render() operations"). Cancel whatever's in flight on this pane first.
+  if (pane.renderTask) {
+    pane.renderTask.cancel();
+    try {
+      await pane.renderTask.promise;
+    } catch {
+      // expected: cancelling a RenderTask rejects its promise
+    }
+  }
+  if (token !== state.renderToken) return; // superseded again while we waited for the cancel
+
   const viewport = page.getViewport({ scale: RENDER_SCALE });
   pane.canvas.width = viewport.width;
   pane.canvas.height = viewport.height;
-  await page.render({ canvasContext: pane.ctx, viewport }).promise;
+  const task = page.render({ canvasContext: pane.ctx, viewport });
+  pane.renderTask = task;
+  try {
+    await task.promise;
+  } catch (err) {
+    if (err?.name === "RenderingCancelledException") return; // a newer render took over; not a real failure
+    throw err;
+  } finally {
+    if (pane.renderTask === task) pane.renderTask = null;
+  }
 }
 
 function renderPaneOverlayAndContent(pane, modelData, baseUrl) {

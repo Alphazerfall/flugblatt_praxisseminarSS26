@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Local dev server for the OCR comparison webapp.
 
-Serves the repo root as static files (so /data/... and /webapp/... both
+Serves the repo root as static files (so /data/... and /ocr_viewer/... both
 resolve) and exposes /api/manifest, which scans data/ on every request for
 available documents and their per-model JSON outputs (see manifest.py).
 
 Usage:
-    python webapp/server.py [--port 8000]
+    python ocr_viewer/server.py [--port 8000]
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/":
             query = urlsplit(self.path).query
-            self.path = "/webapp/index.html" + (f"?{query}" if query else "")
+            self.path = "/ocr_viewer/index.html" + (f"?{query}" if query else "")
         super().do_GET()
 
     def end_headers(self):
@@ -49,7 +49,7 @@ class Handler(SimpleHTTPRequestHandler):
         # mismatches. Data files (PDFs/JSON/images) are left to the browser's
         # normal caching since those are comparatively large and stable.
         path = urlsplit(self.path).path
-        if path == "/" or path.startswith("/webapp/"):
+        if path == "/" or path.startswith("/ocr_viewer/"):
             self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 

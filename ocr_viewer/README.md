@@ -26,7 +26,7 @@ overrides in `style.css`.
 ## Run
 
 ```bash
-python webapp/server.py           # defaults to port 8000
+python ocr_viewer/server.py           # defaults to port 8000
 ```
 
 Open http://127.0.0.1:8000/. The document list is built by scanning `data/`
@@ -90,11 +90,22 @@ the page's width/height — only the ratio matters, not the unit).
   of all per-page files' parsed JSON instead of a single object. Wire the
   folder up in `manifest.py`'s `_scan_dir` the way PaddleOCR's
   `<doc_id>_<page>_res.json` pattern is handled.
-- **No JSON at all, one blob for the whole document** (markdownDatalab):
-  bypasses adapter auto-detection entirely — see `normalizeMarkdown()` and
-  the `kind: "markdown"` handling in `app.js`'s `selectModel()`. Renders as a
-  single full-page block on page 1 with no boxes, since plain markdown/text
-  doesn't carry per-page or per-block structure.
+- **No JSON at all, one blob for the whole document** (markdownDatalab,
+  markdownMistral): bypasses adapter auto-detection entirely — see
+  `normalizeMarkdown()` and the `kind: "markdown"` handling in `app.js`'s
+  `selectModel()`. No boxes, since plain markdown doesn't carry per-block
+  structure — but it can still carry per-*page* structure if the file joins
+  pages with a lone `---` line, the way `mistral_convert.py --format
+  markdown` does. `normalizeMarkdown` splits on that separator and treats
+  the result as real per-page content whenever it yields exactly as many
+  chunks as the PDF has pages (`numPdfPages`, from pdf.js) — a `---` inside a
+  page's own markdown (a real horizontal rule) is indistinguishable from a
+  page separator, so the count check is what keeps a stray in-content `---`
+  from mis-splitting the document. If the count doesn't match (e.g.
+  `datalab_convert.py --format markdown` run without `--paginate`, which
+  emits no separators at all), it falls back to one single full-page block
+  on page 1 — pass `--paginate` when generating Datalab markdown output if
+  you want it to split properly here too.
 - **No JSON at all, one file per page** (GLM-OCR): same idea but per page —
   see `normalizeTextPages()` and `kind: "text_pages"`. Each page becomes one
   full-page block, no boxes.

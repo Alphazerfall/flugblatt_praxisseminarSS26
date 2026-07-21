@@ -327,7 +327,25 @@ function markdownToHtml(md) {
   return out.join("\n");
 }
 
-export function normalizeMarkdown(text) {
+// Some tools (e.g. mistral_convert.py's markdown output) join per-page
+// markdown with a lone "---" line between pages. That's indistinguishable
+// from a plain markdown horizontal rule occurring naturally in a page's own
+// content, so splitting on it is only trusted when it yields exactly as
+// many chunks as the PDF actually has pages (numPdfPages, from pdf.js) —
+// otherwise every page's content would land on page 1 (see ocr_viewer/README.md).
+const MD_PAGE_SEPARATOR_RE = /\r?\n---\r?\n/g;
+
+export function normalizeMarkdown(text, numPdfPages) {
+  const chunks = (text || "").split(MD_PAGE_SEPARATOR_RE);
+  if (numPdfPages && chunks.length === numPdfPages) {
+    return {
+      pages: chunks.map((chunk, i) => ({
+        width: 1,
+        height: 1,
+        blocks: [{ id: `md/${i}`, order: 0, type: "Text", bbox: [0, 0, 1, 1], html: markdownToHtml(chunk) }],
+      })),
+    };
+  }
   return {
     pages: [{
       width: 1,
