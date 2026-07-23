@@ -109,26 +109,80 @@ button:hover { border-color: var(--accent); }
 }
 
 .compare-row {
-  flex: 1;
+  position: relative;
+  flex: 1 1 auto;
   display: flex;
   min-height: 0;
 }
 
-.compare-row + .compare-row { border-top: 1px solid var(--border); }
+/* Fixes row-a's height share to --row-split only in side-by-side mode
+   (.split-rows, toggled in updateLayout()) — otherwise row-a would stay
+   pinned at that height even with row-b hidden, leaving a dead gap below it. */
+.panes.split-rows #row-a {
+  flex: 0 0 var(--row-split, 50%);
+}
 
+/* Draggable divider between row-a and row-b's heights (side-by-side mode
+   only) — same pattern as .pane-resizer below, just the other axis. Width
+   is set explicitly (not just left to flex stretch) so the highlight always
+   spans edge-to-edge regardless of anything nested inside the rows. */
+.row-resizer {
+  flex: 0 0 6px;
+  width: 100%;
+  background: var(--border);
+  cursor: row-resize;
+  z-index: 5;
+}
+
+.row-resizer:hover,
+.row-resizer.dragging {
+  background: var(--accent);
+}
+
+/* Small badge naming which model (A/B) this row is — otherwise, in
+   side-by-side mode, the two rows look identical at a glance and there's
+   no way to tell them apart without cross-checking the dropdowns. */
+.row-label {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 10;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
 
 .pane {
-  flex: 1 1 50%;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
 }
 
+/* Draggable divider between the PDF pane and the content/diff pane in each
+   row — set via --pane-split (a percentage, dragged in app.js and persisted
+   to localStorage) so the PDF pane keeps a fixed share of the row's width
+   instead of growing/shrinking with it. */
 .pdf-pane {
+  flex: 0 0 var(--pane-split, 50%);
   display: flex;
   justify-content: center;
   background: var(--pdf-surround);
   padding: 16px;
-  border-right: 1px solid var(--border);
+}
+
+.pane-resizer {
+  flex: 0 0 6px;
+  background: var(--border);
+  cursor: col-resize;
+}
+
+.pane-resizer:hover,
+.pane-resizer.dragging {
+  background: var(--accent);
 }
 
 .pdf-wrap {
@@ -198,6 +252,19 @@ button:hover { border-color: var(--accent); }
   background: var(--active-tint);
 }
 
+/* Structured diff (view: diff-struct) — a whole block present in only one
+   model, tinted with the same red/green semantics as the inline word-diff
+   spans (.diff-del/.diff-ins below) and the flat word-diff legend chips. */
+.content-item.diff-struct-del {
+  background: color-mix(in srgb, #c17b7b 12%, transparent);
+  border-color: color-mix(in srgb, #c17b7b 35%, transparent);
+}
+
+.content-item.diff-struct-ins {
+  background: color-mix(in srgb, #72a396 12%, transparent);
+  border-color: color-mix(in srgb, #72a396 35%, transparent);
+}
+
 .content-item .num {
   flex: 0 0 auto;
   width: 16px;
@@ -259,15 +326,27 @@ button:hover { border-color: var(--accent); }
   text-align: center;
 }
 
+/* Lives in the topbar (built once in app.js — the type/color mapping is
+   fixed, not per-model/page) rather than repeated inside each content pane.
+   Collapsed by default (native <details>, no JS needed) since it was taking
+   up space every time even though it's rarely needed. */
+.legend-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.legend-details[open] summary { color: var(--text); }
+
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 10px;
-  padding: 0 2px 6px 2px;
+  gap: 4px 10px;
+  max-width: 420px;
+  margin-top: 6px;
   font-size: 10px;
   color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
 }
 
 .legend .chip {
@@ -303,16 +382,19 @@ button:hover { border-color: var(--accent); }
   white-space: pre-wrap;
 }
 
-.diff-content .diff-eq { color: var(--text); }
+/* Not scoped to .diff-content — wordDiffHtml()'s output is also dropped
+   into structured diff's .html-content (per matched block), not just the
+   flat word-diff pane. */
+.diff-eq { color: var(--text); }
 
-.diff-content .diff-del {
+.diff-del {
   color: #c17b7b;
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, #c17b7b 60%, transparent);
   opacity: 0.75;
 }
 
-.diff-content .diff-ins {
+.diff-ins {
   color: #72a396;
   background: color-mix(in srgb, #72a396 14%, transparent);
   border-radius: 2px;

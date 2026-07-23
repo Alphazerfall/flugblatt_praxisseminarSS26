@@ -21,19 +21,20 @@
     <select id="doc-select"></select>
   </div>
   <div class="field">
-    <label for="model-select">Model</label>
+    <label for="model-select">Model A</label>
     <select id="model-select"></select>
   </div>
   <div class="field">
-    <label for="compare-mode">View</label>
+    <label for="compare-mode">Compare mode</label>
     <select id="compare-mode">
       <option value="single">Single</option>
       <option value="side">Side-by-side</option>
       <option value="diff">Word diff</option>
+      <option value="diff-struct">Structured diff</option>
     </select>
   </div>
   <div class="field" id="model-b-field" hidden>
-    <label for="model-select-b">Compare with</label>
+    <label for="model-select-b">Model B</label>
     <select id="model-select-b"></select>
   </div>
   <div class="field page-nav">
@@ -49,17 +50,23 @@
   <div class="field">
     <label><input type="checkbox" id="theme-toggle" /> Light mode</label>
   </div>
+  <details class="legend-details" id="legend-details">
+    <summary>Legend</summary>
+    <div id="type-legend" class="legend"></div>
+  </details>
   <div id="status" class="status"></div>
 </header>
 
 <main class="panes" id="main">
   <div class="compare-row" id="row-a">
+    <span class="row-label" id="row-label-a"></span>
     <section class="pane pdf-pane">
       <div class="pdf-wrap">
         <canvas id="pdf-canvas-a"></canvas>
         <div id="overlay-a" class="overlay"></div>
       </div>
     </section>
+    <div class="pane-resizer" title="Drag to resize"></div>
     <section class="pane content-pane" id="content-pane-a">
       <div id="content-list-a" class="content-list"></div>
     </section>
@@ -68,13 +75,16 @@
       <div id="diff-content" class="diff-content"></div>
     </section>
   </div>
+  <div class="row-resizer" id="row-resizer" title="Drag to resize" hidden></div>
   <div class="compare-row" id="row-b" hidden>
+    <span class="row-label" id="row-label-b"></span>
     <section class="pane pdf-pane">
       <div class="pdf-wrap">
         <canvas id="pdf-canvas-b"></canvas>
         <div id="overlay-b" class="overlay"></div>
       </div>
     </section>
+    <div class="pane-resizer" title="Drag to resize"></div>
     <section class="pane content-pane" id="content-pane-b">
       <div id="content-list-b" class="content-list"></div>
     </section>

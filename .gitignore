@@ -23,5 +23,4 @@ Thumbs.db
 .idea/
 
 # Data
-data/raw/
-data/test/
+data/

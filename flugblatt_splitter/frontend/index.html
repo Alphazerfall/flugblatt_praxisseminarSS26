@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flugblatt Splitter</title>
+<script>
+  // applied synchronously, before CSS paints, so there's no flash of the
+  // wrong theme while app.js (a deferred module script) is still loading
+  (function () {
+    var stored = localStorage.getItem("flugblatt-splitter-theme");
+    var theme = stored || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="field">
+    <label for="pdf-select">PDF</label>
+    <select id="pdf-select">
+      <option value="">– select –</option>
+    </select>
+  </div>
+  <button id="btn-save" type="button" disabled>Save JSON</button>
+  <button id="btn-load-json" type="button" disabled>Load JSON</button>
+  <span class="chip"><span class="swatch" style="--c: var(--confirmed-color)"></span>confirmed cut</span>
+  <span id="doc-summary" class="chip"></span>
+  <div class="field">
+    <label><input type="checkbox" id="theme-toggle"> Light mode</label>
+  </div>
+  <div id="status" class="status"></div>
+</header>
+
+<main id="app">
+  <section id="preview-panel" class="pane">
+    <div id="preview-list"></div>
+  </section>
+
+  <div id="panel-resizer" title="Drag to resize"></div>
+
+  <section id="pages-panel" class="pane">
+    <div id="pages-list"></div>
+  </section>
+</main>
+
+<template id="tpl-segment-box">
+  <div class="segment-box">
+    <div class="segment-box-header">
+      <span class="segment-range"></span>
+      <button type="button" class="segment-confirm-btn">Confirm</button>
+    </div>
+    <div class="segment-box-grid"></div>
+  </div>
+</template>
+
+<template id="tpl-preview-thumb">
+  <div class="preview-thumb" data-page-number="">
+    <div class="preview-thumb-img-wrap">
+      <img loading="lazy" alt="">
+      <button type="button" class="preview-thumb-cut" title="Add/remove cut after this page"></button>
+    </div>
+    <span class="preview-thumb-label"></span>
+  </div>
+</template>
+
+<template id="tpl-page">
+  <div class="page" data-page-number="">
+    <div class="page-thumb-wrap">
+      <img class="thumb" loading="lazy" alt="">
+      <span class="page-number-badge"></span>
+    </div>
+  </div>
+</template>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

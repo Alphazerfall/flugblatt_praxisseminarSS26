@@ -1,0 +1,439 @@
+// Flugblatt Splitter frontend. No build step — loaded directly as an ES module.
+//
+// Pure manual, visual splitting tool: no text/header extraction and no AI
+// boundary suggestions — thumbnails and page images are the only signal.
+// The user reviews thumbnails and clicks a thumbnail's corner cut (or the
+// segment confirmed button) to build up the segmentation themselves.
+//
+// Title/date input fields are intentionally not rendered right now (the
+// segment data model still carries them, round-tripped on save/load) for
+// possible future manual entry.
+
+const PREVIEW_DPI = 60
+
+const el = {
+  pdfSelect: document.getElementById('pdf-select'),
+  btnSave: document.getElementById('btn-save'),
+  btnLoadJson: document.getElementById('btn-load-json'),
+  themeToggle: document.getElementById('theme-toggle'),
+  status: document.getElementById('status'),
+  app: document.getElementById('app'),
+  panelResizer: document.getElementById('panel-resizer'),
+  previewPanel: document.getElementById('preview-panel'),
+  previewList: document.getElementById('preview-list'),
+  docSummary: document.getElementById('doc-summary'),
+  pagesPanel: document.getElementById('pages-panel'),
+  pagesList: document.getElementById('pages-list'),
+  tplSegmentBox: document.getElementById('tpl-segment-box'),
+  tplPreviewThumb: document.getElementById('tpl-preview-thumb'),
+  tplPage: document.getElementById('tpl-page'),
+}
+
+// index.html applies the stored/system theme synchronously (before paint)
+// via an inline <script> so there's no flash of the wrong theme; this just
+// keeps the toggle in sync and persists changes.
+const THEME_KEY = 'flugblatt-splitter-theme'
+el.themeToggle.checked = document.documentElement.dataset.theme === 'light'
+el.themeToggle.addEventListener('change', () => {
+  const theme = el.themeToggle.checked ? 'light' : 'dark'
+  document.documentElement.dataset.theme = theme
+  localStorage.setItem(THEME_KEY, theme)
+})
+
+// Draggable split between the two panes — the right-hand detailed view can
+// otherwise be too wide to comfortably read a full scan at once, with no
+// way to give it less (or more) of the screen. Persisted so it survives a
+// reload, same pattern as the theme toggle above.
+const PANEL_SPLIT_KEY = 'flugblatt-splitter-panel-split'
+const PANEL_SPLIT_MIN = 0.2
+const PANEL_SPLIT_MAX = 0.8
+
+function applyPanelSplit(fraction) {
+  // fr tracks share only the space left over after the fixed 6px resizer
+  // track — using percentages for both sides summed to 100% + 6px, always
+  // overflowing the container by exactly the resizer's width and producing
+  // a permanent few-pixel horizontal scrollbar.
+  el.app.style.gridTemplateColumns = `${fraction}fr 6px ${1 - fraction}fr`
+}
+
+function setupPanelResizer() {
+  const stored = Number(localStorage.getItem(PANEL_SPLIT_KEY))
+  applyPanelSplit(stored > 0 && stored < 1 ? stored : 0.5)
+
+  el.panelResizer.addEventListener('mousedown', (event) => {
+    event.preventDefault()
+    el.panelResizer.classList.add('dragging')
+    const appRect = el.app.getBoundingClientRect()
+
+    function onMove(moveEvent) {
+      const fraction = (moveEvent.clientX - appRect.left) / appRect.width
+      applyPanelSplit(Math.min(PANEL_SPLIT_MAX, Math.max(PANEL_SPLIT_MIN, fraction)))
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      el.panelResizer.classList.remove('dragging')
+      const fraction = el.previewPanel.getBoundingClientRect().width / appRect.width
+      localStorage.setItem(PANEL_SPLIT_KEY, String(fraction))
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  })
+}
+setupPanelResizer()
+
+const state = {
+  pdf: null,
+  pageCount: 0,
+  pages: [],                 // [{pageNumber, width, height}]
+  cuts: new Set(),           // human-confirmed cut points ("cut after page N")
+  segmentMeta: new Map(),    // startPage -> {title, date, confirmed} — title/date not editable in the UI yet
+  pageEls: new Map(),        // pageNumber -> page element (right-hand detailed list)
+  currentVisiblePage: null,  // page currently scrolled into view on the right — mirrored as a highlight on the left
+}
+
+let scrollSpyHandler = null
+let scrollSpyRaf = null
+
+function setStatus(text) {
+  el.status.textContent = text
+}
+
+async function fetchJSON(url, options) {
+  const res = await fetch(url, options)
+  if (!res.ok) {
+    let detail = res.statusText
+    try { detail = (await res.json()).detail || detail } catch { /* not JSON */ }
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+// Derives contiguous [{startPage, endPage}] segments from the cut-point set.
+// Pure function — mirrors the backend's segmentation.validate_segments logic
+// client-side so every divider click can recompute instantly with no round-trip.
+function computeSegments(pageCount, cuts) {
+  const sortedCuts = [...cuts].filter((c) => c >= 1 && c < pageCount).sort((a, b) => a - b)
+  const segments = []
+  let start = 1
+  for (const cut of sortedCuts) {
+    segments.push({ startPage: start, endPage: cut })
+    start = cut + 1
+  }
+  segments.push({ startPage: start, endPage: pageCount })
+  return segments
+}
+
+// Creates blank segmentMeta entries for newly-appeared segment start pages
+// (never overwrites data the user, or a saved file, already provided). Not
+// shown in the UI yet, but round-tripped through save/load so nothing is lost.
+function ensureSegmentMeta(segments) {
+  for (const seg of segments) {
+    if (!state.segmentMeta.has(seg.startPage)) {
+      state.segmentMeta.set(seg.startPage, { title: '', date: '', confirmed: false })
+    }
+  }
+}
+
+async function loadPdfList() {
+  const { pdfs } = await fetchJSON('/api/pdfs')
+  for (const pdf of pdfs) {
+    const opt = document.createElement('option')
+    opt.value = pdf
+    opt.textContent = pdf
+    el.pdfSelect.appendChild(opt)
+  }
+}
+
+async function onSelectPdf() {
+  const pdf = el.pdfSelect.value
+  if (!pdf) return
+  setStatus('Loading pages…')
+  el.btnSave.disabled = true
+  el.btnLoadJson.disabled = true
+
+  state.pdf = pdf
+  state.cuts = new Set()
+  state.segmentMeta = new Map()
+  state.pageEls = new Map()
+
+  const doc = await fetchJSON(`/api/document?pdf=${encodeURIComponent(pdf)}`)
+  state.pageCount = doc.page_count
+  const { pages } = await fetchJSON(`/api/pages?pdf=${encodeURIComponent(pdf)}`)
+  // Normalize the API's snake_case fields to camelCase once, here, so the
+  // rest of the frontend can consistently use page.pageNumber.
+  state.pages = pages.map((p) => ({ pageNumber: p.page_number, width: p.width, height: p.height }))
+
+  buildPagesList()
+  setupScrollSpy()
+
+  // Best-effort: restore a previously saved segmentation for this PDF.
+  try {
+    await loadSegmentationFromServer(pdf, { silent: true })
+    setStatus('Loaded saved segmentation.')
+  } catch {
+    setStatus(`${state.pageCount} pages loaded.`)
+  }
+
+  renderSegments()
+  el.btnSave.disabled = false
+  el.btnLoadJson.disabled = false
+}
+
+// Highlights, in the left-half overview, whichever page is currently
+// scrolled into view in the right-hand detailed list. Driven directly off
+// scroll position (rAF-throttled) rather than IntersectionObserver ratios —
+// ratio comparisons flicker between adjacent pages right around their shared
+// boundary (especially scrolling up), which made the left-hand highlight and
+// its auto-scroll jump around and occasionally not match what's actually
+// shown on the right.
+function setupScrollSpy() {
+  if (scrollSpyHandler) el.pagesPanel.removeEventListener('scroll', scrollSpyHandler)
+  state.currentVisiblePage = null
+
+  scrollSpyHandler = () => {
+    if (scrollSpyRaf != null) return
+    scrollSpyRaf = requestAnimationFrame(() => {
+      scrollSpyRaf = null
+      updateCurrentPageFromScroll()
+    })
+  }
+  el.pagesPanel.addEventListener('scroll', scrollSpyHandler, { passive: true })
+  updateCurrentPageFromScroll()
+}
+
+// The "current" page is the last one whose top has scrolled up to (or past)
+// a reference line near the top of the right-hand panel — i.e. whichever
+// page a real reader would say they're looking at. Unlike intersection
+// ratios, this changes exactly once per boundary crossed, in either scroll
+// direction.
+function updateCurrentPageFromScroll() {
+  const referenceLine = el.pagesPanel.getBoundingClientRect().top + 16
+  let current = null
+  for (const [pageNumber, pageEl] of state.pageEls) {
+    if (pageEl.getBoundingClientRect().top <= referenceLine) {
+      if (current == null || pageNumber > current) current = pageNumber
+    }
+  }
+  if (current == null && state.pages.length > 0) current = state.pages[0].pageNumber
+  if (current === state.currentVisiblePage) return
+  state.currentVisiblePage = current
+  updateCurrentIndicator()
+}
+
+// Keeps the left-hand overview following the right-hand detailed list —
+// whichever thumbnail matches the currently-visible page is both highlighted
+// and scrolled into view, so the user doesn't have to separately mouse-wheel
+// the left pane to keep up with where they are on the right.
+function updateCurrentIndicator() {
+  for (const thumb of el.previewList.querySelectorAll('.preview-thumb.current')) {
+    thumb.classList.remove('current')
+  }
+  if (state.currentVisiblePage == null) return
+  const thumb = el.previewList.querySelector(`.preview-thumb[data-page-number="${state.currentVisiblePage}"]`)
+  if (!thumb) return
+  thumb.classList.add('current')
+  scrollToElement(el.previewPanel, thumb)
+}
+
+// Native scrollIntoView({behavior: 'smooth'}) has no speed control and feels
+// sluggish over the distance of a ~100-page list — animate scrollTop
+// directly instead, over a short fixed duration regardless of distance.
+function scrollToElement(container, target, duration = 220) {
+  const containerRect = container.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  const startTop = container.scrollTop
+  const delta = targetRect.top - containerRect.top - 8
+  const startTime = performance.now()
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration)
+    const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
+    container.scrollTop = startTop + delta * eased
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+function jumpToPage(pageNumber) {
+  const pageEl = state.pageEls.get(pageNumber)
+  if (!pageEl) return
+  scrollToElement(el.pagesPanel, pageEl)
+}
+
+function buildPagesList() {
+  el.pagesList.innerHTML = ''
+  state.pageEls = new Map()
+
+  state.pages.forEach((page) => {
+    const pageEl = buildPageEl(page)
+    state.pageEls.set(page.pageNumber, pageEl)
+    el.pagesList.appendChild(pageEl)
+  })
+}
+
+function buildPageEl(page) {
+  const frag = el.tplPage.content.cloneNode(true)
+  const root = frag.querySelector('.page')
+  root.dataset.pageNumber = String(page.pageNumber)
+  root.querySelector('.page-number-badge').textContent = `Page ${page.pageNumber}`
+
+  const img = root.querySelector('.thumb')
+  // Reserve the image's real aspect ratio up front — otherwise the box
+  // starts at 0 height and grows once the (lazy-loaded) image arrives,
+  // shifting every page below it and throwing off any in-flight
+  // scroll-to-page animation targeting one of those later pages.
+  if (page.width && page.height) img.style.aspectRatio = `${page.width} / ${page.height}`
+  img.src = `/api/thumbnail?pdf=${encodeURIComponent(state.pdf)}&page=${page.pageNumber}`
+  img.alt = `Page ${page.pageNumber}`
+
+  // Clicking anywhere on the card snaps it fully into view at the top —
+  // handy when a click lands on a page that's only partially scrolled into
+  // view.
+  root.addEventListener('click', () => scrollToElement(el.pagesPanel, root))
+
+  return root
+}
+
+function toggleCut(afterPage) {
+  if (state.cuts.has(afterPage)) {
+    state.cuts.delete(afterPage)
+  } else {
+    state.cuts.add(afterPage)
+  }
+  renderSegments()
+}
+
+// --- Left-half overview: one bordered box per segment containing a
+// responsive grid of that segment's (large) thumbnails. Rebuilt on every
+// renderSegments() call since box membership changes whenever cuts change.
+// Each thumbnail (except the document's last page) carries its own small
+// "cut after this page" corner toggle — the only way to add/remove a cut,
+// since the right-hand detailed list has no divider control of its own. ---
+
+function buildPreviewPanel(segments) {
+  el.previewList.innerHTML = ''
+  segments.forEach((seg) => {
+    el.previewList.appendChild(buildSegmentBoxEl(seg))
+  })
+  updateCurrentIndicator()
+}
+
+function buildSegmentBoxEl(seg) {
+  const meta = state.segmentMeta.get(seg.startPage)
+  const frag = el.tplSegmentBox.content.cloneNode(true)
+  const root = frag.querySelector('.segment-box')
+
+  root.querySelector('.segment-range').textContent =
+    seg.startPage === seg.endPage ? `Page ${seg.startPage}` : `Pages ${seg.startPage}–${seg.endPage}`
+
+  const confirmBtn = root.querySelector('.segment-confirm-btn')
+  const applyConfirmedStyle = () => {
+    root.classList.toggle('confirmed', meta.confirmed)
+    confirmBtn.classList.toggle('confirmed', meta.confirmed)
+    confirmBtn.textContent = meta.confirmed ? 'Confirmed' : 'Confirm'
+  }
+  applyConfirmedStyle()
+  confirmBtn.addEventListener('click', () => {
+    meta.confirmed = !meta.confirmed
+    applyConfirmedStyle()
+  })
+
+  const gridEl = root.querySelector('.segment-box-grid')
+  for (let p = seg.startPage; p <= seg.endPage; p++) {
+    gridEl.appendChild(buildPreviewThumbEl(state.pages[p - 1]))
+  }
+
+  return root
+}
+
+function buildPreviewThumbEl(page) {
+  const frag = el.tplPreviewThumb.content.cloneNode(true)
+  const root = frag.querySelector('.preview-thumb')
+  root.dataset.pageNumber = String(page.pageNumber)
+
+  const img = root.querySelector('img')
+  img.src = `/api/thumbnail?pdf=${encodeURIComponent(state.pdf)}&page=${page.pageNumber}&dpi=${PREVIEW_DPI}`
+  img.alt = `Page ${page.pageNumber}`
+  root.querySelector('.preview-thumb-label').textContent = `Page ${page.pageNumber}`
+  root.addEventListener('click', () => jumpToPage(page.pageNumber))
+
+  const cutBtn = root.querySelector('.preview-thumb-cut')
+  if (page.pageNumber >= state.pageCount) {
+    // no valid "cut after" position past the last page
+    cutBtn.remove()
+  } else {
+    updatePreviewCutButton(cutBtn, page.pageNumber)
+    cutBtn.addEventListener('click', (event) => {
+      event.stopPropagation() // don't also trigger the thumbnail's jump-to-page click
+      toggleCut(page.pageNumber)
+    })
+  }
+
+  return root
+}
+
+// afterPage here is always a page number (the cut sits right after it),
+// rendered as the folded-corner triangle overlaid on the thumbnail.
+function updatePreviewCutButton(cutBtn, afterPage) {
+  const confirmed = state.cuts.has(afterPage)
+  cutBtn.classList.toggle('confirmed', confirmed)
+  cutBtn.title = confirmed ? 'Remove cut' : 'Add cut after this page'
+}
+
+function renderSegments() {
+  const segments = computeSegments(state.pageCount, state.cuts)
+  ensureSegmentMeta(segments)
+
+  el.docSummary.textContent = `${state.pageCount} pages · ${segments.length} segments`
+  buildPreviewPanel(segments)
+}
+
+async function saveJson() {
+  const segments = computeSegments(state.pageCount, state.cuts).map((seg, i) => {
+    const meta = state.segmentMeta.get(seg.startPage)
+    return {
+      id: i + 1,
+      title: meta.title,
+      date: meta.date,
+      start_page: seg.startPage,
+      end_page: seg.endPage,
+      confirmed: meta.confirmed,
+    }
+  })
+  try {
+    const result = await fetchJSON('/api/segmentation/save', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pdf: state.pdf, segments }),
+    })
+    setStatus(`Saved: ${result.saved_to}`)
+  } catch (err) {
+    setStatus(`Error saving: ${err.message}`)
+  }
+}
+
+async function loadSegmentationFromServer(pdf, { silent = false } = {}) {
+  const doc = await fetchJSON(`/api/segmentation/load?pdf=${encodeURIComponent(pdf)}`)
+  state.cuts = new Set(doc.segments.slice(0, -1).map((s) => s.end_page))
+  state.segmentMeta = new Map(
+    doc.segments.map((s) => [s.start_page, { title: s.title, date: s.date || '', confirmed: s.confirmed }]),
+  )
+  if (!silent) renderSegments()
+}
+
+async function loadJsonButtonClicked() {
+  try {
+    await loadSegmentationFromServer(state.pdf)
+    renderSegments()
+    setStatus('Segmentation loaded.')
+  } catch (err) {
+    setStatus(`No saved segmentation found: ${err.message}`)
+  }
+}
+
+el.pdfSelect.addEventListener('change', onSelectPdf)
+el.btnSave.addEventListener('click', saveJson)
+el.btnLoadJson.addEventListener('click', loadJsonButtonClicked)
+
+loadPdfList().catch((err) => setStatus(`Error loading PDF list: ${err.message}`))

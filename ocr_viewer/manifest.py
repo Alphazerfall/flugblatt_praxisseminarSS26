@@ -14,8 +14,10 @@ Recognized layouts, checked per candidate directory in this order:
        data/<dataset>/jsonDatalab/<doc_id>.json
      Model name is always the containing folder name verbatim (e.g.
      "jsonDatalab", "output", or the doc id itself for the first layout
-     above) — dropdown labels are meant to read as "which folder is this",
-     not a prettified guess.
+     above) — this stays a stable, unambiguous identifier ("which folder is
+     this"), used for matching and deep-link URLs. The frontend applies a
+     separate, purely cosmetic prettification on top for display (see
+     MODEL_DISPLAY_NAMES in app.js) — it doesn't change what's sent here.
 
   2. `<doc_id>/<model>.json` (explicit multi-model layout, stem != doc id)
        data/<dataset>/<doc_id>/glm.json          -> model "glm"

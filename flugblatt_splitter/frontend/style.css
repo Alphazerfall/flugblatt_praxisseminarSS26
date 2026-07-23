@@ -1,0 +1,374 @@
+:root {
+  color-scheme: dark;
+  --bg: #1e1f22;
+  --panel: #2a2b2f;
+  --border: #3d3e42;
+  --text: #e7e7e9;
+  --muted: #9a9ba0;
+  --accent: #7a9cc2;
+  --input-bg: #1e1f22;
+
+  --confirmed-color: #e0453f;
+  --confirm-green: #3fb37a;
+  --current-color: #4a90e2; /* dedicated to the "currently viewed page" indicator, distinct from --accent */
+
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* set explicitly by app.js on load (stored choice, else system preference)
+   and by the theme toggle — see initTheme()/applyTheme() in app.js. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0f2;
+  --panel: #ffffff;
+  --border: #d7dade;
+  --text: #1e2124;
+  --muted: #6b7078;
+  --accent: #3f6690;
+  --input-bg: #ffffff;
+  --current-color: #1f5fc4;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+/* --- Topbar (includes the legend chips) --- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.field label { color: var(--muted); }
+
+select, button, input[type="text"] {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+select { min-width: 220px; }
+
+button { cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.chip .swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  background: var(--c);
+  flex-shrink: 0;
+}
+
+#doc-summary {
+  font-weight: 600;
+  color: var(--text);
+}
+
+#doc-summary:empty { display: none; }
+
+/* --- Layout: two independently-scrolling halves filling the viewport --- */
+
+#app {
+  flex: 1;
+  display: grid;
+  /* Overridden inline by app.js (and persisted to localStorage) once the
+     user drags #panel-resizer — see setupPanelResizer(). */
+  grid-template-columns: 1fr 6px 1fr;
+  min-height: 0;
+}
+
+.pane { min-width: 0; overflow-y: auto; }
+
+/* Draggable divider between the two panes — the right-hand detailed view
+   can otherwise be too wide to read a full scan comfortably at once, with
+   no way to give it less (or more) of the screen. */
+#panel-resizer {
+  background: var(--border);
+  cursor: col-resize;
+}
+
+#panel-resizer:hover,
+#panel-resizer.dragging {
+  background: var(--accent);
+}
+
+/* --- Left half: overview — one boxed section per segment, each containing
+   that segment's (large) page thumbnails and its own dividers. Replaces the
+   old separate segments-list + thumbnail-strip with a single merged view. --- */
+
+#preview-panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+#preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tight — the border should hug the thumbnails, not float around them. */
+.segment-box {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px;
+  background: var(--bg);
+}
+
+.segment-box.confirmed {
+  border-color: var(--confirm-green);
+  background: color-mix(in srgb, var(--confirm-green) 8%, var(--bg));
+}
+
+.segment-box-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.segment-range {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.segment-confirm-btn {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.segment-confirm-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+
+.segment-confirm-btn.confirmed {
+  background: var(--confirm-green);
+  border-color: var(--confirm-green);
+  color: #fff;
+}
+
+/* Responsive grid — as many ~110px-and-up thumbnails per row as fit, so the
+   left half is used efficiently regardless of window width. Extra right
+   padding on each cell makes room for the cut-line without shrinking images. */
+.segment-box-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 4px 14px;
+}
+
+.preview-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+/* Wraps just the image so the corner-cut triangle can be positioned
+   relative to the image's own box, not the thumbnail column as a whole —
+   otherwise its position drifts out of alignment with the image's actual
+   (rounded, sometimes thicker-bordered) corner whenever the label height
+   or the "current" border/glow changes. */
+.preview-thumb-img-wrap {
+  position: relative;
+  align-self: stretch;
+}
+
+.preview-thumb img {
+  display: block;
+  width: 100%;
+  /* Placeholder aspect ratio so the element has a non-zero box before the
+     image finishes loading — without this, loading="lazy" images can end up
+     with a 0-height box that the browser never considers near-viewport, and
+     so never actually loads. object-fit keeps real (slightly different)
+     page proportions from looking stretched or cropped. */
+  aspect-ratio: 0.72;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 0;
+  border: 1px solid var(--border);
+}
+
+.preview-thumb:hover img { border-color: var(--accent); }
+
+/* Highlights the thumbnail matching whatever page is currently scrolled
+   into view on the right (see updateCurrentPageFromScroll in app.js) — a
+   strong, hard-to-miss treatment since this is the primary "where am I"
+   signal between the two halves. Uses a dedicated --current-color (not
+   --accent) for contrast. The background is set on the column as a whole
+   (not the label itself) so its width always matches the grid cell — fixed
+   regardless of the image's border thickness — rather than tracking
+   whatever width the label text happens to be. */
+.preview-thumb.current {
+  background: color-mix(in srgb, var(--current-color) 16%, transparent);
+  border-radius: 4px;
+}
+
+.preview-thumb.current img {
+  border-color: var(--current-color);
+  border-width: 3px;
+  box-shadow: 0 0 0 2px var(--current-color);
+}
+
+.preview-thumb.current .preview-thumb-label {
+  color: var(--current-color);
+  font-weight: 700;
+}
+
+/* Not stretched to the image's width — with no fill/background of its own,
+   a stretched box would still show a rectangle wherever it contrasted with
+   the segment box's background, which read the same as an actual filled
+   box. Left to size to its own text and centered by the parent's
+   align-items instead. */
+.preview-thumb-label {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* Folded-corner triangle overlaid on the bottom-right of the image —
+   click to insert/remove a cut after that page. Sits fully inside the
+   image's own box, flush with its actual corner (see .preview-thumb-img-wrap
+   above), unlike the earlier line-in-the-grid-gap attempt, which lived in
+   the CSS grid gap — space that belongs to no element, so the hover that
+   was supposed to reveal it could never actually fire and the control was
+   unreachable. Always visible so there's no hover precision required at
+   all; muted at rest, colored when confirmed/AI-suggested. */
+.preview-thumb-cut {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border-style: solid;
+  border-width: 0 0 32px 32px;
+  border-color: transparent transparent var(--border) transparent;
+  border-radius: 0; /* override the generic button rule's 4px — a border-radius
+                        on a border-trick triangle rounds its corners, which
+                        no longer lines up with the image's own square-ish
+                        corner */
+  cursor: pointer;
+  z-index: 2;
+  transition: border-color 0.1s;
+}
+
+.preview-thumb-cut:hover { border-color: transparent transparent var(--accent) transparent; }
+
+.preview-thumb-cut.confirmed {
+  border-color: transparent transparent var(--confirmed-color) transparent;
+}
+
+/* --- Right half: detailed page-by-page view --- */
+
+#pages-panel {
+  padding: 6px 10px;
+}
+
+#pages-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.page {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px 6px;
+  cursor: pointer;
+}
+
+/* Wraps just the scan image so the page-number badge can float over its
+   corner instead of taking its own header row — the image should start
+   as close to the top of the card as possible. */
+.page-thumb-wrap {
+  position: relative;
+}
+
+/* Small, deliberately understated — just enough to orient the reader
+   without reintroducing a full header row and the top-of-card space that
+   came with it. */
+.page-number-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  z-index: 1;
+}
+
+.thumb {
+  display: block;
+  /* width (not just max-width) is required for the inline aspect-ratio
+     (set per-page in app.js from real PDF page dimensions) to actually
+     resolve a height before the image loads — with only max-width, an
+     unloaded img has no resolvable width, so aspect-ratio has nothing to
+     compute against and the box collapses to 0 height, which is exactly
+     what caused pages below it to drift out from under an in-flight
+     scroll-to-page jump. */
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 2px;
+  background: #fff;
+}
+

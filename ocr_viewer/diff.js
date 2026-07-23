@@ -74,3 +74,80 @@ export function wordDiffHtml(textA, textB) {
   const ops = diffTokens(a, b);
   return ops.map((op) => `<span class="diff-${op.type}">${escapeHtml(op.value)}</span>`).join(" ");
 }
+
+// ---------- block-level alignment (structured diff) ----------
+// Order-independent word-set overlap (Jaccard) between two blocks' text —
+// cheap, and robust to word reordering within a block, which plain word-LCS
+// isn't. Blocks are basically never byte-identical across two different
+// models even when they really do correspond to the same content, so this
+// is a similarity *score*, not an equality check.
+function similarity(textA, textB) {
+  const setA = new Set(tokenize(textA));
+  const setB = new Set(tokenize(textB));
+  if (setA.size === 0 && setB.size === 0) return 1;
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const w of setA) if (setB.has(w)) intersection++;
+  return intersection / (setA.size + setB.size - intersection);
+}
+
+// Below this, two blocks are treated as unrelated rather than "the same
+// paragraph, OCR'd differently" — tuned loosely; false matches are more
+// confusing than a same-content pair occasionally showing as del+ins.
+const MIN_BLOCK_SIMILARITY = 0.15;
+
+const MAX_ALIGN_CELLS = 4_000_000; // same budget/rationale as MAX_DIFF_CELLS, in block-count terms
+
+// Needleman-Wunsch-style sequence alignment (not plain LCS — LCS only has
+// an equal/unequal test, but block text is graded similarity) over two
+// blocks' text arrays. Returns an ordered list of
+// {type:"match", a, b} | {type:"del", a} | {type:"ins", b}, `a`/`b` being
+// indices into textsA/textsB, in reading order.
+export function alignBlocks(textsA, textsB) {
+  const n = textsA.length;
+  const m = textsB.length;
+  if (n * m > MAX_ALIGN_CELLS) {
+    // Pathological case (shouldn't happen for a single page) — fall back to
+    // "nothing matches" so the caller still gets a usable, if unhelpful, result.
+    const ops = [];
+    for (let i = 0; i < n; i++) ops.push({ type: "del", a: i });
+    for (let j = 0; j < m; j++) ops.push({ type: "ins", b: j });
+    return ops;
+  }
+
+  const sim = Array.from({ length: n }, () => new Float64Array(m));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) sim[i][j] = similarity(textsA[i], textsB[j]);
+  }
+
+  const score = Array.from({ length: n + 1 }, () => new Float64Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      const s = sim[i][j];
+      const matchScore = s >= MIN_BLOCK_SIMILARITY ? score[i + 1][j + 1] + s : -Infinity;
+      score[i][j] = Math.max(matchScore, score[i + 1][j], score[i][j + 1]);
+    }
+  }
+
+  const ops = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    const s = sim[i][j];
+    const matchScore = s >= MIN_BLOCK_SIMILARITY ? score[i + 1][j + 1] + s : -Infinity;
+    if (matchScore >= score[i + 1][j] && matchScore >= score[i][j + 1]) {
+      ops.push({ type: "match", a: i, b: j });
+      i++;
+      j++;
+    } else if (score[i + 1][j] >= score[i][j + 1]) {
+      ops.push({ type: "del", a: i });
+      i++;
+    } else {
+      ops.push({ type: "ins", b: j });
+      j++;
+    }
+  }
+  while (i < n) ops.push({ type: "del", a: i++ });
+  while (j < m) ops.push({ type: "ins", b: j++ });
+  return ops;
+}

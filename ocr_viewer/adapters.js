@@ -290,6 +290,64 @@ function normalizeGemini(json) {
   return { pages };
 }
 
+// ---------- Gemini, --blocks mode (jsonGemini/test_set.json: { model, pages:
+// [{ page, dimensions: {width,height}, blocks: [{ type, box_2d, content }] }] }) ----------
+// gemini_convert.py --blocks asks the model directly for positioned layout
+// blocks instead of a markdown blob: real per-page boxes, no page-break
+// guessing needed. box_2d is Gemini's own convention — [ymin, xmin, ymax,
+// xmax], normalized to a fixed 0-1000 range regardless of the page's actual
+// pixel size — so it's rescaled here against `dimensions` into the same
+// coordinate space normalize() expects everywhere else (bbox in the same
+// units as the page's own width/height).
+const GEMINI_BLOCK_TYPE_MAP = {
+  header: "PageHeader",
+  footer: "PageHeader",
+  heading: "SectionHeader",
+  title: "SectionHeader",
+  paragraph: "Text",
+  text: "Text",
+  list: "ListGroup",
+  caption: "Caption",
+  table: "Table",
+  image: "Picture",
+  figure: "Picture",
+  equation: "Equation",
+};
+
+function isGeminiBlocksJson(data) {
+  return (
+    data &&
+    typeof data === "object" &&
+    Array.isArray(data.pages) &&
+    data.pages.every((p) => p && Array.isArray(p.blocks) && p.dimensions)
+  );
+}
+
+function geminiBlockHtml(b) {
+  if (b.type === "table") return mistralTableToHtml(b.content) || markdownToHtml(b.content || "");
+  return markdownToHtml(b.content || "");
+}
+
+function normalizeGeminiBlocks(json) {
+  const pages = [];
+  for (const p of json.pages || []) {
+    const width = p.dimensions?.width || 1000;
+    const height = p.dimensions?.height || 1000;
+    const blocks = (p.blocks || []).map((b, i) => {
+      const [ymin, xmin, ymax, xmax] = b.box_2d || [0, 0, 0, 0];
+      return {
+        id: `gemini/${p.page}/${i}`,
+        order: i,
+        type: GEMINI_BLOCK_TYPE_MAP[b.type] || b.type || "Unknown",
+        bbox: [(xmin / 1000) * width, (ymin / 1000) * height, (xmax / 1000) * width, (ymax / 1000) * height],
+        html: geminiBlockHtml(b),
+      };
+    });
+    pages[p.page] = { width, height, blocks };
+  }
+  return { pages };
+}
+
 // ---------- Markdown-only output (no boxes) ----------
 function inlineMarkdown(s) {
   let html = escapeHtml(s);
@@ -302,28 +360,62 @@ function inlineMarkdown(s) {
 function markdownToHtml(md) {
   const out = [];
   let paragraph = [];
-  const flush = () => {
+  let list = null; // { tag: "ol" | "ul", items: [] }
+  const flushParagraph = () => {
     if (paragraph.length) {
       out.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
       paragraph = [];
     }
   };
+  // Requires 2+ consecutive items before actually rendering as a list —
+  // this dataset's scanned pages are full of standalone "- 2 -" page-number
+  // markers, which is indistinguishable from a one-item bullet list by
+  // shape alone ("-" + whitespace + text) but is never followed by a second
+  // bullet line right after it the way a real list is. A single buffered
+  // "item" falls back to its original, unmodified line as a plain paragraph.
+  const flushList = () => {
+    if (!list) return;
+    if (list.items.length >= 2) {
+      out.push(`<${list.tag}>${list.items.map((i) => `<li>${inlineMarkdown(i.text)}</li>`).join("")}</${list.tag}>`);
+    } else {
+      out.push(`<p>${inlineMarkdown(list.items[0].raw)}</p>`);
+    }
+    list = null;
+  };
   for (const raw of (md || "").split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || /^[-=]{3,}$/.test(line)) {
-      flush();
+      flushParagraph();
+      flushList();
       continue;
     }
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
-      flush();
+      flushParagraph();
+      flushList();
       const level = Math.min(heading[1].length, 3);
       out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
       continue;
     }
+    // Ordered ("1. "/"1) ") and unordered ("-"/"*"/"+ ") list items — without
+    // this, a real list (real newline-separated "1. foo\n2. bar\n..." — e.g.
+    // Mistral's `list`-type blocks) degraded to one run-on paragraph, since
+    // everything not a heading/hr was just joined with spaces.
+    const ordered = line.match(/^\d+[.)]\s+(.*)$/);
+    const unordered = !ordered && line.match(/^[-*+]\s+(.*)$/);
+    if (ordered || unordered) {
+      flushParagraph();
+      const tag = ordered ? "ol" : "ul";
+      if (list && list.tag !== tag) flushList();
+      if (!list) list = { tag, items: [] };
+      list.items.push({ raw: line, text: (ordered || unordered)[1] });
+      continue;
+    }
+    flushList();
     paragraph.push(line);
   }
-  flush();
+  flushParagraph();
+  flushList();
   return out.join("\n");
 }
 
@@ -385,6 +477,7 @@ const ADAPTERS = [
   { name: "paddleocr", matches: isPaddleOcrPages, normalize: normalizePaddleOcrPages },
   { name: "mistral", matches: isMistralJson, normalize: normalizeMistral },
   { name: "qwen", matches: isQwenJson, normalize: normalizeQwen },
+  { name: "gemini", matches: isGeminiBlocksJson, normalize: normalizeGeminiBlocks },
   { name: "gemini", matches: isGeminiJson, normalize: normalizeGemini },
 ];
 
@@ -414,6 +507,14 @@ export function colorFor(type) {
   return PALETTE[type] || DEFAULT_COLOR;
 }
 
+// Types that share a color (Table/TableCell, ListGroup/ListItem) are merged
+// into one legend chip instead of two identical-looking swatches — the
+// legend is meant to explain the overlay's colors, not enumerate every type.
 export function legendEntries() {
-  return Object.entries(PALETTE);
+  const byColor = new Map();
+  for (const [type, color] of Object.entries(PALETTE)) {
+    if (!byColor.has(color)) byColor.set(color, []);
+    byColor.get(color).push(type);
+  }
+  return [...byColor.entries()].map(([color, types]) => [types.join(" / "), color]);
 }

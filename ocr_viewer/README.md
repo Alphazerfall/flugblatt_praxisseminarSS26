@@ -5,16 +5,36 @@ PaddleOCR, GLM-OCR, ...) against the source PDF: page on the left with
 detected boxes overlaid, extracted content on the right, numbered and synced
 by hover/click — same idea as Datalab's own playground UI.
 
-The **View** dropdown switches between three ways of comparing the current
-document's models, all sharing the same document/page navigation:
+The **Compare mode** dropdown switches between four ways of comparing the
+current document's models, all sharing the same document/page navigation:
 - **Single** — one model, the layout described above.
-- **Side-by-side** — two full model rows (PDF+boxes | content) stacked, model
-  A on top and "Compare with" (model B) below, so misaligned/missed regions
-  are visible at a glance without flipping the dropdown back and forth.
+- **Side-by-side** — two full model rows (PDF+boxes | content) stacked, Model
+  A on top and Model B below (each row labelled so it's clear which is
+  which), with a draggable divider between the two rows' heights, so
+  misaligned/missed regions are visible at a glance without flipping the
+  dropdown back and forth.
 - **Word diff** — model A's PDF+boxes on the left; on the right, a word-level
-  diff of the two models' extracted text for the current page (LCS-based,
-  `diff.js`), red/struck-through for text only in A, green for text only in
-  B, unstyled where they agree.
+  diff of the two models' extracted text for the current page, flattened to
+  one plain-text blob (LCS-based, `diff.js`), red/struck-through for text
+  only in A, green for text only in B, unstyled where they agree.
+- **Structured diff** — the same word-level diff, but keeping model A's
+  block structure instead of flattening the page: bbox overlay, per-block
+  type tags and numbering all stay, hover/click-synced between the page and
+  the content list exactly like Single/Side-by-side. Blocks are aligned
+  first (`alignBlocks` in `diff.js`) by word-overlap similarity, not exact
+  match — two models' output for the same paragraph is essentially never
+  byte-identical — then each matched pair is word-diffed; a block that only
+  exists in one model shows as a whole-block insertion/deletion (tinted
+  red/green) instead. Alignment quality depends on the two models
+  segmenting the page similarly — if one merges several paragraphs a
+  finer-grained model keeps separate, expect more block-level insert/delete
+  noise instead of clean word-level diffs within a shared block.
+
+Model names in the dropdowns are prettified for readability (e.g. "Datalab
+API (JSON)" instead of the raw output folder name "jsonDatalab") — see
+`MODEL_DISPLAY_NAMES` in `app.js`. The underlying folder/file name is still
+used for matching and deep-link URLs, so links stay stable even if a label
+changes.
 
 The **Light mode** checkbox toggles the theme; the choice is remembered
 (`localStorage`) and otherwise defaults to the OS's `prefers-color-scheme`.
@@ -122,6 +142,7 @@ the page's width/height — only the ratio matters, not the unit).
 - `manifest.py` — scans `data/` for documents and their per-model JSON outputs
 - `index.html` / `style.css` / `app.js` — the frontend
 - `adapters.js` — per-model JSON → common shape normalization
-- `diff.js` — word-level LCS diff between two models' extracted page text
+- `diff.js` — word-level LCS diff between two models' extracted page text,
+  plus block-level alignment (`alignBlocks`) for the structured diff mode
 - `sanitize.js` — whitelist HTML sanitizer for rendering block content
 - `vendor/` — vendored pdf.js (ESM build)
