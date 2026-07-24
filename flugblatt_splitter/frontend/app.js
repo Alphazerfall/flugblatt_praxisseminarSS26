@@ -95,8 +95,21 @@ const state = {
 let scrollSpyHandler = null
 let scrollSpyRaf = null
 
-function setStatus(text) {
+// `flash` re-triggers a brief highlight animation even if the text is
+// identical to what's already shown (e.g. saving twice in a row to the same
+// path) — otherwise a repeat save looks like nothing happened at all.
+function setStatus(text, { flash = false } = {}) {
   el.status.textContent = text
+  if (flash) {
+    el.status.classList.remove('flash')
+    // Two rAFs (not just a forced-reflow read) guarantee the browser has
+    // actually painted the class-removed state before it's re-added —
+    // a single synchronous reflow can still get coalesced away, silently
+    // skipping the animation restart.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => el.status.classList.add('flash'))
+    })
+  }
 }
 
 async function fetchJSON(url, options) {
@@ -208,6 +221,13 @@ function setupScrollSpy() {
 // ratios, this changes exactly once per boundary crossed, in either scroll
 // direction.
 function updateCurrentPageFromScroll() {
+  // While a programmatic jump (jumpToPage) is animating the scroll, the
+  // scroll events it generates would otherwise race our own explicit
+  // "current page" update: this recompute reads the in-between scroll
+  // position, briefly reporting the old page again before the animation
+  // finishes and it corrects itself — visible as the highlight jumping to
+  // the target, back to the old page, then to the target a second time.
+  if (suppressScrollSpy) return
   const referenceLine = el.pagesPanel.getBoundingClientRect().top + 16
   let current = null
   for (const [pageNumber, pageEl] of state.pageEls) {
@@ -233,17 +253,24 @@ function updateCurrentIndicator() {
   const thumb = el.previewList.querySelector(`.preview-thumb[data-page-number="${state.currentVisiblePage}"]`)
   if (!thumb) return
   thumb.classList.add('current')
-  scrollToElement(el.previewPanel, thumb)
+  // Extra top clearance (vs. the plain 8px default) — the "current" thumb's
+  // own border/glow grows beyond a normal thumbnail's box (see
+  // .preview-thumb.current img in style.css), so when it lands right at the
+  // scrollable panel's own top edge, the default gap isn't enough and the
+  // glow reads as clipped by the panel itself. Always prioritizes the thumb
+  // itself being clearly in view; if that pushes its segment box's own
+  // header above the fold, that's fine.
+  scrollToElement(el.previewPanel, thumb, { offset: 20 })
 }
 
 // Native scrollIntoView({behavior: 'smooth'}) has no speed control and feels
 // sluggish over the distance of a ~100-page list — animate scrollTop
 // directly instead, over a short fixed duration regardless of distance.
-function scrollToElement(container, target, duration = 220) {
+function scrollToElement(container, target, { duration = 220, offset = 8, onDone } = {}) {
   const containerRect = container.getBoundingClientRect()
   const targetRect = target.getBoundingClientRect()
   const startTop = container.scrollTop
-  const delta = targetRect.top - containerRect.top - 8
+  const delta = targetRect.top - containerRect.top - offset
   const startTime = performance.now()
 
   function step(now) {
@@ -251,14 +278,21 @@ function scrollToElement(container, target, duration = 220) {
     const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic
     container.scrollTop = startTop + delta * eased
     if (t < 1) requestAnimationFrame(step)
+    else onDone?.()
   }
   requestAnimationFrame(step)
 }
 
+// See the comment in updateCurrentPageFromScroll — set for the duration of a
+// jumpToPage animation so its own scroll events don't fight the "current
+// page" value the jump itself is setting.
+let suppressScrollSpy = false
+
 function jumpToPage(pageNumber) {
   const pageEl = state.pageEls.get(pageNumber)
   if (!pageEl) return
-  scrollToElement(el.pagesPanel, pageEl)
+  suppressScrollSpy = true
+  scrollToElement(el.pagesPanel, pageEl, { onDone: () => { suppressScrollSpy = false } })
 }
 
 function buildPagesList() {
@@ -407,7 +441,7 @@ async function saveJson() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ pdf: state.pdf, segments }),
     })
-    setStatus(`Saved: ${result.saved_to}`)
+    setStatus(`Saved ${new Date().toLocaleTimeString()} — ${result.saved_to}`, { flash: true })
   } catch (err) {
     setStatus(`Error saving: ${err.message}`)
   }
@@ -435,5 +469,68 @@ async function loadJsonButtonClicked() {
 el.pdfSelect.addEventListener('change', onSelectPdf)
 el.btnSave.addEventListener('click', saveJson)
 el.btnLoadJson.addEventListener('click', loadJsonButtonClicked)
+
+// --- Keyboard-only first pass: ↑/↓ (or ←/→) step through the PDF list,
+// Arrow keys step through pages (no cut, just look); Space/Enter marks a cut
+// after the currently-visible page and advances to the next one — so a full
+// first pass can be done without touching the mouse. Ignored while an actual
+// form control has focus so typing (e.g. a future title/date field) isn't
+// hijacked.
+
+function isTypingTarget(target) {
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+}
+
+// Jumps to `target` and updates our own tracked "current page" immediately,
+// rather than waiting for the scroll-spy to notice it via scroll events.
+// The animated scroll only takes ~220ms, but late-loading (lazy) thumbnails
+// below the fold can shift the list's layout underneath it, so scroll-spy
+// convergence lags well behind a rapid key-repeat pass — without this, fast
+// presses would double up on the same page instead of moving on each time.
+function setCurrentPage(target) {
+  jumpToPage(target)
+  state.currentVisiblePage = target
+  updateCurrentIndicator()
+}
+
+function movePage(delta) {
+  if (!state.pdf) return
+  const current = state.currentVisiblePage
+  if (current == null) return
+  const target = Math.min(state.pageCount, Math.max(1, current + delta))
+  if (target === current) return
+  setCurrentPage(target)
+}
+
+// "Current page" here is the same one the scroll-spy already tracks as
+// visible in the right-hand detailed list — the natural page to be adding a
+// cut after during a top-to-bottom pass.
+function addSplitAndAdvance() {
+  if (!state.pdf) return
+  const current = state.currentVisiblePage
+  if (current == null || current >= state.pageCount) return
+  if (!state.cuts.has(current)) {
+    state.cuts.add(current)
+    renderSegments()
+  }
+  setCurrentPage(current + 1)
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.ctrlKey || event.altKey || event.metaKey) return
+  if (isTypingTarget(event.target)) return
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+    event.preventDefault()
+    movePage(1)
+  } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+    event.preventDefault()
+    movePage(-1)
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    addSplitAndAdvance()
+  }
+})
 
 loadPdfList().catch((err) => setStatus(`Error loading PDF list: ${err.message}`))

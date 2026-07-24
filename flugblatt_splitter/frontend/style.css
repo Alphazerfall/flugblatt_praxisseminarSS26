@@ -84,6 +84,35 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 12px;
   color: var(--muted);
   max-width: 34ch;
+  /* Truncate instead of wrap — a longer message (e.g. the save timestamp +
+     path) wrapping to a second line grows this flex item's height, which
+     grows the whole topbar row along with it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 4px;
+  padding: 2px 6px;
+  /* Always present (just transparent at rest) so the flash below only ever
+     animates border-color, never adds/removes the border itself — that
+     would shift neighboring topbar content by a pixel on every save. */
+  border: 1px solid transparent;
+}
+
+/* Re-triggered (via classList remove + double-rAF + add, see setStatus())
+   on every save, even a repeat one with identical text, so it's obvious a
+   save just happened rather than the status line silently doing nothing.
+   Holds solid for a moment before fading — a pure fade-from-the-start reads
+   as barely-there rather than an actual flash. `forwards` keeps the final
+   (transparent) keyframe applied once it ends, instead of snapping back to
+   any static .status.flash color — there is none here, but relying on fill
+   mode rather than "just don't declare one" keeps this safe if that changes. */
+.status.flash {
+  animation: status-flash 1400ms ease-out forwards;
+}
+
+@keyframes status-flash {
+  0%, 35% { background: var(--confirm-green); color: #fff; border-color: var(--confirm-green); }
+  100% { background: transparent; color: var(--muted); border-color: transparent; }
 }
 
 .chip {
@@ -152,11 +181,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 8px;
 }
 
-/* Tight — the border should hug the thumbnails, not float around them. */
+/* Padded enough that the "current" thumbnail's thicker border + glow (see
+   .preview-thumb.current img below) has clearance on every side — with a
+   tight 5px this used to visually run into the box's own rounded corner for
+   thumbnails in the first row/column, reading as if they'd been clipped. */
 .segment-box {
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 5px;
+  padding: 12px;
   background: var(--bg);
 }
 
@@ -169,7 +201,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
   font-size: 12px;
 }
 
@@ -203,7 +235,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .segment-box-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 4px 14px;
+  gap: 10px 14px;
 }
 
 .preview-thumb {
