@@ -91,8 +91,8 @@ for the current document (`GET /api/annotator-progress`, server.py).
 - Only the selected block's box is drawn on the scan by default — with ~20
   boxes on a page, showing all of them makes the scan hard to read while
   transcribing; every box stays clickable, just visually hidden until it's
-  the active one (or hovered, on the scan itself). **Show all boxes** (below
-  the Page section) overrides this to audit the whole layout at once.
+  the active one (or hovered, on the scan itself). **Show all boxes** (in the
+  Page section's Layout group) overrides this to audit the whole layout at once.
 - **Block state** — a colored left border on the block, matching its inline
   3-state toggle:
   - **Editing** (blue) — never confirmed since it was last empty. No diff
@@ -127,24 +127,29 @@ for the current document (`GET /api/annotator-progress`, server.py).
   from CER scoring. (`NON_TEXT_TYPES` in `app.js` and in
   `pipelines/03_eval/build_dinglehopper_inputs.py` — keep them in sync.)
 - **Page** (sidebar) combines page-level progress/options and whole-page
-  layout review in one box:
+  layout review in one box, split into labeled sub-groups so the bulk action
+  doesn't blend into the review checklist:
   - Progress summary and the automatic completion status described above.
-  - **Insert all OCR text**.
-  - **Reading order is correct** — checked by default; uncheck if Datalab's
-    block order doesn't match the page's actual reading order.
-  - **Layout has errors** + a free-text field to describe them (missed or
-    spurious regions, wrong classification, etc.) — both saved into the gold
-    standard and surfaced in the eval script's `structural_report.csv`.
-  - **I've checked the reading order and layout** — the completion gate
+  - **Blocks**: **Insert all OCR text**.
+  - **Layout**: **Show all boxes** — every block's box at once (with reading-
+    order numbers), instead of just the focused block's; this is the control
+    to turn on while actually checking reading order/layout, and it overrides
+    the topbar's own "Show boxes" (hidden in Correct mode — the sidebar one is
+    the only box toggle here, so it can't be left showing nothing with no
+    visible reason). **Reading order is correct** — checked by default;
+    uncheck if Datalab's block order doesn't match the page's actual reading
+    order. **Layout has errors** + a free-text field to describe them (missed
+    or spurious regions, wrong classification, etc.) — both saved into the
+    gold standard and surfaced in the eval script's `structural_report.csv`.
+    **I've checked the reading order and layout** — the completion gate
     described above.
-  - A per-page **note** field for anything the other guidelines don't cover
-    (stamps, marginalia, struck-through text).
+  - **Notes**: a per-page **note** field for anything the other guidelines
+    don't cover (stamps, marginalia, struck-through text).
   Below the Page box: **Show diff vs raw OCR** (or `Alt+D`) shows a word diff
   of your correction against Datalab's raw text — per block (a strip under
   each changed block) and, toggled on, for the whole page (red = raw OCR
-  removed, green = correction added) — and **Show all boxes**, the
-  full-layout override mentioned above. Both are viewing preferences only
-  (remembered locally), not saved into the gold.
+  removed, green = correction added). Like **Show all boxes**, it's a viewing
+  preference only (remembered locally), not saved into the gold.
 
 **Transcription conventions.** The gold standard is plain text scored per
 character, so:
@@ -154,7 +159,8 @@ character, so:
 - **Soft line breaks** inside a paragraph are just spaces — the extraction and
   scoring both treat them that way (see below), so type one line.
 - Keyboard: `Tab`/`Shift+Tab` between blocks, `Ctrl+Enter` commit & next,
-  `Alt+D` diff.
+  `Alt+D` diff, `Alt+1`/`2`/`3` set the focused block's review state directly
+  to Editing/Under review/Reviewed.
 
 Edits **autosave** (debounced) to
 `data/<dataset>/gold/annotations/<annotator>/page_<NNN>.json` via the server's

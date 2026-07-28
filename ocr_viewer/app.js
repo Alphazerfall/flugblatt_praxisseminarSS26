@@ -53,6 +53,7 @@ const el = {
   pageInput: document.getElementById("page-input"),
   pageTotal: document.getElementById("page-total"),
   toggleBoxes: document.getElementById("toggle-boxes"),
+  toggleBoxesField: document.getElementById("toggle-boxes-field"),
   themeToggle: document.getElementById("theme-toggle"),
   status: document.getElementById("status"),
   typeLegend: document.getElementById("type-legend"),
@@ -1253,6 +1254,8 @@ function renderEditableList(pane, pageDataA) {
 // (the 3-state toggle, Illegible, Insert OCR text, Note, Remove).
 
 const REVIEW_LABELS = { editing: "Editing", pending: "Under review", done: "Reviewed" };
+// Alt+1/2/3 jump the focused block to a review state directly.
+const REVIEW_KEYS = { 1: "editing", 2: "pending", 3: "done" };
 
 // Every block resolved — reviewed (or illegible, which excludes it from
 // scoring rather than requiring review). No manual toggle for this half:
@@ -1495,6 +1498,16 @@ function updateLayout() {
   // the pane instead of being stuck at the bottom with nothing left to
   // scroll past it.
   el.contentListA.classList.toggle("scroll-pad", correct);
+  // "Show all boxes" (Layout section) is the only box toggle in Correct mode —
+  // hide the topbar's and force the overlay on so it can't be left blank.
+  el.toggleBoxesField.hidden = correct;
+  if (correct) {
+    el.overlayA.style.display = "";
+    el.overlayB.style.display = "";
+  } else {
+    el.overlayA.style.display = el.toggleBoxes.checked ? "" : "none";
+    el.overlayB.style.display = el.toggleBoxes.checked ? "" : "none";
+  }
 }
 
 // row-a is always model A; row-b (side-by-side only) is always model B —
@@ -1605,23 +1618,43 @@ el.pageNote.addEventListener("input", () => {
   scheduleSave();
 });
 
-// Keyboard shortcuts, active only in Correct mode. Tab/Shift+Tab move between
-// textareas natively (they're in document order); these add the rest.
+// Keyboard shortcuts, active only in Correct mode. Tab/Shift+Tab are handled
+// here (not left to native tab order) so focus uses preventScroll — avoids a
+// double-scroll fight with our own smooth scrollIntoView in syncOnFocus.
 document.addEventListener("keydown", (e) => {
   if (state.compareMode !== "correct") return;
-  if (e.ctrlKey && e.key === "Enter") {
+  if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const items = panes.a.correctItems || [];
+    if (!items.some((it) => it.textarea === document.activeElement)) return; // native tab elsewhere
+    const dir = e.shiftKey ? -1 : 1;
+    let next = state.focusedBlock + dir;
+    while (next >= 0 && next < items.length && (!items[next].textarea || items[next].textarea.disabled)) {
+      next += dir;
+    }
+    if (next >= 0 && next < items.length) {
+      e.preventDefault();
+      focusBlockTextarea(next);
+    } // else: out of range — fall through to native tab (leaves the block list)
+  } else if (e.ctrlKey && e.key === "Enter") {
     e.preventDefault();
     focusBlockTextarea(state.focusedBlock + 1);
   } else if (e.altKey && (e.key === "d" || e.key === "D")) {
     e.preventDefault();
     el.showGoldDiff.checked = !el.showGoldDiff.checked;
     el.showGoldDiff.dispatchEvent(new Event("change"));
+  } else if (e.altKey && REVIEW_KEYS[e.key]) {
+    e.preventDefault();
+    const item = panes.a.correctItems?.[state.focusedBlock];
+    if (item && isTextBlock(item.block)) {
+      setReviewState(item.block, REVIEW_KEYS[e.key]);
+      item.refresh();
+    }
   }
 });
 
 function focusBlockTextarea(readingPos) {
   const textarea = panes.a.correctItems?.[readingPos]?.textarea;
-  if (textarea && !textarea.disabled) textarea.focus();
+  if (textarea && !textarea.disabled) textarea.focus({ preventScroll: true });
 }
 
 // Don't lose a debounced save if the tab is closed mid-edit.

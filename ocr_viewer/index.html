@@ -50,7 +50,7 @@
     <span id="page-total">/ -</span>
     <button id="next-page" type="button">&rarr;</button>
   </div>
-  <div class="field">
+  <div class="field" id="toggle-boxes-field">
     <label><input type="checkbox" id="toggle-boxes" checked /> Show boxes</label>
   </div>
   <div class="field">
@@ -87,20 +87,23 @@
           <div class="correct-progress" id="correct-progress">&ndash;</div>
           <div class="page-complete-status" id="page-complete-status"></div>
         </div>
+        <div class="correct-subheading">Blocks</div>
         <button id="insert-all-ocr" type="button" title="Overwrites every block's text with its OCR text">Insert all OCR text</button>
+
+        <div class="correct-subheading">Layout</div>
+        <label class="correct-check"><input type="checkbox" id="show-all-boxes" /> Show all boxes</label>
         <label class="correct-check"><input type="checkbox" id="reading-order-correct" checked /> Reading order is correct</label>
         <label class="correct-check"><input type="checkbox" id="layout-has-errors" /> Layout has errors</label>
-        <label for="layout-error-note">Describe layout errors</label>
-        <textarea id="layout-error-note" rows="3" placeholder="missed/spurious regions, wrong classification, wrong reading order, etc."></textarea>
+        <textarea id="layout-error-note" rows="3" aria-label="Describe layout errors" placeholder="missed region, wrong order, etc."></textarea>
         <label class="correct-check" id="layout-reviewed-field">
           <input type="checkbox" id="layout-reviewed" /> I've checked the reading order and layout
         </label>
-        <label for="page-note">Page note</label>
-        <textarea id="page-note" rows="4" placeholder="stamps, marginalia, struck-through text, decisions to record for the limitations write-up&hellip;"></textarea>
+
+        <div class="correct-subheading">Notes</div>
+        <textarea id="page-note" rows="4" aria-label="Page note" placeholder="stamps, marginalia, struck-through text&hellip;"></textarea>
       </div>
       <div class="correct-section">
         <label class="correct-check"><input type="checkbox" id="show-gold-diff" /> Show diff vs raw OCR</label>
-        <label class="correct-check"><input type="checkbox" id="show-all-boxes" /> Show all boxes</label>
       </div>
       <div class="correct-section correct-shortcuts">
         <div class="correct-heading">Shortcuts</div>
@@ -108,6 +111,7 @@
           <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> &mdash; next / prev block</li>
           <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> &mdash; commit &amp; next</li>
           <li><kbd>Alt</kbd>+<kbd>D</kbd> &mdash; toggle diff vs raw</li>
+          <li><kbd>Alt</kbd>+<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> &mdash; Editing / Under review / Reviewed</li>
         </ul>
       </div>
       <div class="correct-save" id="correct-save"></div>
