@@ -31,11 +31,17 @@
       <option value="side">Side-by-side</option>
       <option value="diff">Word diff</option>
       <option value="diff-struct">Structured diff</option>
+      <option value="correct">Correct (gold standard)</option>
     </select>
   </div>
   <div class="field" id="model-b-field" hidden>
     <label for="model-select-b">Model B</label>
     <select id="model-select-b"></select>
+  </div>
+  <div class="field" id="annotator-field" hidden>
+    <label for="annotator-input">Annotator</label>
+    <input id="annotator-input" type="text" placeholder="e.g. fw" size="8" />
+    <span id="annotator-progress" class="annotator-progress"></span>
   </div>
   <div class="field page-nav">
     <label for="page-input">Page</label>
@@ -73,6 +79,38 @@
     <section class="pane diff-pane" id="diff-pane" hidden>
       <div id="diff-legend" class="diff-legend"></div>
       <div id="diff-content" class="diff-content"></div>
+    </section>
+    <section class="pane correct-sidebar" id="correct-sidebar" hidden>
+      <div class="correct-section sidebar-box" id="page-options">
+        <div class="correct-heading">Page</div>
+        <div class="page-status-box">
+          <div class="correct-progress" id="correct-progress">&ndash;</div>
+          <div class="page-complete-status" id="page-complete-status"></div>
+        </div>
+        <button id="insert-all-ocr" type="button" title="Overwrites every block's text with its OCR text">Insert all OCR text</button>
+        <label class="correct-check"><input type="checkbox" id="reading-order-correct" checked /> Reading order is correct</label>
+        <label class="correct-check"><input type="checkbox" id="layout-has-errors" /> Layout has errors</label>
+        <label for="layout-error-note">Describe layout errors</label>
+        <textarea id="layout-error-note" rows="3" placeholder="missed/spurious regions, wrong classification, wrong reading order, etc."></textarea>
+        <label class="correct-check" id="layout-reviewed-field">
+          <input type="checkbox" id="layout-reviewed" /> I've checked the reading order and layout
+        </label>
+        <label for="page-note">Page note</label>
+        <textarea id="page-note" rows="4" placeholder="stamps, marginalia, struck-through text, decisions to record for the limitations write-up&hellip;"></textarea>
+      </div>
+      <div class="correct-section">
+        <label class="correct-check"><input type="checkbox" id="show-gold-diff" /> Show diff vs raw OCR</label>
+        <label class="correct-check"><input type="checkbox" id="show-all-boxes" /> Show all boxes</label>
+      </div>
+      <div class="correct-section correct-shortcuts">
+        <div class="correct-heading">Shortcuts</div>
+        <ul>
+          <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> &mdash; next / prev block</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> &mdash; commit &amp; next</li>
+          <li><kbd>Alt</kbd>+<kbd>D</kbd> &mdash; toggle diff vs raw</li>
+        </ul>
+      </div>
+      <div class="correct-save" id="correct-save"></div>
     </section>
   </div>
   <div class="row-resizer" id="row-resizer" title="Drag to resize" hidden></div>

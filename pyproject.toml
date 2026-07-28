@@ -10,10 +10,19 @@ dependencies = [
     "pypdf",
     "python-dotenv",
     "requests",
+    "datalab-python-sdk",
     "mistralai",
     "google-genai>=2.0.0",
     "openai",
     "pymupdf",
+]
+
+[project.optional-dependencies]
+# CER/WER scoring of the gold standard produced by the OCR-viewer's Correct
+# mode. Kept optional (pulls lxml/rapidfuzz/uniseg) — install with
+#   pip install -e ".[eval]"
+eval = [
+    "dinglehopper",
 ]
 
 [tool.setuptools]

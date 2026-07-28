@@ -35,13 +35,24 @@ pip install -r requirements.txt
 
 ## Run
 
+Run from the **repo root** (not from inside `flugblatt_splitter/`), using the
+venv's own Python so it doesn't matter whether that venv is activated:
+
 ```sh
-uvicorn flugblatt_splitter.backend.main:app --reload --port 8020
+# PowerShell / bash / Git Bash (forward slashes)
+flugblatt_splitter/.venv/Scripts/python.exe -m uvicorn flugblatt_splitter.backend.main:app --reload --port 8020
+```
+
+```bat
+:: cmd.exe (needs backslashes — it won't resolve a relative exe path with /)
+flugblatt_splitter\.venv\Scripts\python.exe -m uvicorn flugblatt_splitter.backend.main:app --reload --port 8020
 ```
 
 Then open <http://127.0.0.1:8020/> in a browser. (Port 8020 is just a
 suggestion — pick any free port; `ocr_viewer/` in this repo commonly runs on
-8000/8010.)
+8000/8010.) `--reload` picks up backend code changes automatically;
+`frontend/` files are served fresh on every request regardless, so a browser
+refresh is enough to see those.
 
 ## Using it
 

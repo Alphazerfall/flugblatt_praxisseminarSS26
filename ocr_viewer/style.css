@@ -64,6 +64,9 @@ body {
 
 .field label { color: var(--muted); }
 
+/* "N/M complete" next to the Annotator field. */
+.annotator-progress { color: var(--muted); font-size: 12px; }
+
 select, button, input {
   background: var(--input-bg);
   color: var(--text);
@@ -227,13 +230,43 @@ button:hover { border-color: var(--accent); }
   pointer-events: none;
 }
 
+/* On hover/active, drop the fill so the scanned text underneath stays
+   readable, and emphasise the block with a ring that grows *outward* only
+   (box-shadow adds no layout box and sits outside the border), so the
+   highlight never creeps inward over the scanned content. */
 .box.active,
 .box:hover {
-  background: color-mix(in srgb, var(--box-color, #ff6b6b) 22%, transparent);
+  background: transparent;
+  box-shadow: 0 0 0 2px var(--box-color, #ff6b6b);
   z-index: 5;
 }
 
+/* Correct mode (.boxes-solo, toggled in renderOverlay): only the
+   selected/hovered block's box is visible, so the rest of the scan stays
+   legible while transcribing. Boxes stay in the DOM and clickable (not
+   display:none) so clicking anywhere on the scan still jumps to that block —
+   only their paint is suppressed. */
+.overlay.boxes-solo .box { border-color: transparent; background: transparent; }
+.overlay.boxes-solo .box .badge { opacity: 0; }
+.overlay.boxes-solo .box.active,
+.overlay.boxes-solo .box:hover {
+  border-color: var(--box-color, #ff6b6b);
+}
+.overlay.boxes-solo .box.active .badge,
+.overlay.boxes-solo .box:hover .badge {
+  opacity: 1;
+}
+
 .content-pane { background: var(--panel); padding: 8px 12px; }
+
+/* Correct mode only (toggled in updateLayout()): padding-bottom means the
+   last block can be scrolled up to the top of the view (nothing left below
+   it to scroll past would otherwise strand it near the bottom). padding-top
+   makes the gap above the first block match the gap between blocks — .content-pane
+   already contributes 8px; the current-block glow ring (box-shadow, 2px)
+   eats into that visually, so a bit extra is added to compensate and land
+   on the same 10px as .correct-item's margin-bottom. */
+.content-list.scroll-pad { padding-top: 4px; padding-bottom: 60vh; }
 
 .content-item {
   display: flex;
@@ -398,4 +431,276 @@ button:hover { border-color: var(--accent); }
   color: #72a396;
   background: color-mix(in srgb, #72a396 14%, transparent);
   border-radius: 2px;
+}
+
+/* ---------- correction / gold-standard mode ---------- */
+
+/* The third pane: a fixed-width session sidebar (annotator, progress, page
+   note, add-block, shortcuts, autosave status). content-pane-a stays flex:1
+   as the editable list; this sits to its right at a fixed width. */
+.correct-sidebar {
+  flex: 0 0 240px;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 12.5px;
+}
+
+.correct-section { display: flex; flex-direction: column; gap: 8px; }
+
+/* Groups the progress chips + completion status in one visually distinct
+   box (a tinted panel) so they read as "current status", set apart from the
+   buttons/checkboxes around them, rather than blending into the rest of the
+   Page section. */
+.page-status-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--hover-tint);
+  border-radius: 4px;
+}
+
+/* Each count on its own line (not one long " · "-joined string, and not a
+   wrapping row either) — a dot color-codes each chip to match its review
+   state (app.js builds these; see updateCorrectSidebar). */
+.correct-progress { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.progress-chip { display: flex; align-items: center; gap: 5px; }
+.progress-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.progress-dot[data-review="editing"] { background: #6f8bbd; }
+.progress-dot[data-review="pending"] { background: #d9b354; }
+.progress-dot[data-review="done"] { background: #4caf7d; }
+.progress-dot[data-review="illegible"] { background: var(--muted); }
+
+/* Read-only, derived from block states — no manual toggle. */
+.page-complete-status { font-size: 11.5px; font-weight: 600; }
+.page-complete-status[data-complete="yes"] { color: #3a8f63; }
+.page-complete-status[data-complete="no"] { color: var(--muted); }
+
+.correct-check { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.correct-check input { flex: 0 0 auto; }
+
+.correct-sidebar button { align-self: flex-start; }
+
+.correct-sidebar textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.correct-heading {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.correct-shortcuts ul { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.correct-shortcuts li { color: var(--muted); font-size: 11px; }
+
+kbd {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--text);
+}
+
+.correct-save { margin-top: auto; font-size: 11px; min-height: 1.4em; }
+.correct-save[data-state="saving"] { color: var(--muted); }
+.correct-save[data-state="saved"] { color: #72a396; }
+.correct-save[data-state="error"] { color: #c17b7b; }
+.correct-save[data-state="no-annotator"] { color: #c9a24b; }
+
+/* An editable block: number chip + body (type tag, state pill, textarea/image, diff). */
+.correct-item { cursor: default; align-items: stretch; margin-bottom: 10px; }
+
+.correct-item .gt-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 1.9em;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.35;
+  padding: 3px 6px;
+}
+.correct-item .gt-input:focus { outline: none; border-color: var(--accent); }
+.correct-item .gt-input:disabled { opacity: 0.6; }
+
+/* Non-text (Picture/Figure) block: just the image — no review coloring,
+   nothing to transcribe (its note is edited via the sidebar). */
+.correct-item .gt-media img { max-width: 100%; display: block; border-radius: 2px; }
+.correct-item .gt-media:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Header row: type tag, the inline 3-state toggle + Illegible, and (text
+   blocks only) "Insert OCR text" pushed to the far right via margin-left:auto
+   — every per-block control on one line, right on the block. flex-wrap is a
+   safety net for narrow panes; the pieces are sized to fit one line at the
+   sidebar's normal width. */
+.block-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.block-header .type-tag { flex: 0 0 auto; margin-bottom: 0; }
+
+.import-ocr-btn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 7px;
+  color: var(--muted);
+}
+.import-ocr-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+
+/* Only on annotator-added blocks — shares the same pushed-right slot as
+   .import-ocr-btn (mutually exclusive: an added block has no OCR text to
+   insert), so both use margin-left:auto. */
+.remove-block-btn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 7px;
+  color: #c17b7b;
+  border-color: #c17b7b;
+}
+.remove-block-btn:hover { color: #fff; background: #c17b7b; }
+
+.illegible-btn {
+  font-size: 10px;
+  padding: 1px 7px;
+  color: var(--muted);
+}
+.illegible-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.illegible-btn.active { color: #fff; background: var(--muted); border-color: var(--muted); }
+
+/* Per-block note: collapsed behind a small button until opened or already
+   has content (app.js). */
+.add-note-btn {
+  margin-top: 4px;
+  font-size: 10px;
+  padding: 1px 7px;
+  color: var(--muted);
+}
+.add-note-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.block-note-field { display: flex; align-items: flex-start; gap: 4px; margin-top: 4px; }
+.block-note-input {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  min-height: 1.6em;
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.35;
+  padding: 3px 6px;
+  color: var(--muted);
+}
+.block-note-input:focus { outline: none; border-color: var(--accent); color: var(--text); }
+
+.remove-note-btn {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  color: var(--muted);
+}
+.remove-note-btn:hover { color: #c17b7b; border-color: #c17b7b; }
+
+/* Review-state coloring (text blocks only — set via item.dataset.review).
+   A left rail + faint tint, distinct enough to read at a glance without
+   covering the text. "Reviewed" (done) uses a different, more saturated
+   green than the diff strip's muted "matches" rail below, so the two
+   distinct signals — workflow state vs. content agreement — don't blur
+   together. Illegible (a separate, sticky flag) always wins, regardless of
+   the underlying review value — the combined attribute selector
+   out-specifies the single-attribute rules above it. */
+.correct-item[data-review="editing"] { border-left: 3px solid #6f8bbd; background: color-mix(in srgb, #6f8bbd 6%, transparent); }
+.correct-item[data-review="pending"] { border-left: 3px solid #d9b354; background: color-mix(in srgb, #d9b354 7%, transparent); }
+.correct-item[data-review="done"] { border-left: 3px solid #4caf7d; background: color-mix(in srgb, #4caf7d 7%, transparent); }
+.correct-item[data-review][data-status="illegible"] { border-left: 3px solid var(--muted); background: transparent; opacity: 0.75; }
+
+/* The currently selected block: a glow ring in the same color as the
+   review-state rail above, rather than a separate tint/color — box-shadow
+   instead of border so it doesn't touch the box model (no layout shift) and
+   doesn't fight with the left-border review coloring, which stays visible
+   underneath. Only one block ever has this class — cleared from any other
+   before being added (see syncOnFocus in app.js). */
+.correct-item.current-block[data-review="editing"] { box-shadow: 0 0 0 2px #6f8bbd; }
+.correct-item.current-block[data-review="pending"] { box-shadow: 0 0 0 2px #d9b354; }
+.correct-item.current-block[data-review="done"] { box-shadow: 0 0 0 2px #4caf7d; }
+.correct-item.current-block[data-review][data-status="illegible"] { box-shadow: 0 0 0 2px var(--muted); }
+/* Non-text (Picture/Figure) blocks never carry data-review — fall back to
+   the ordinary focus-ring color. */
+.correct-item.current-block:not([data-review]) { box-shadow: 0 0 0 2px var(--accent); }
+
+.gt-diff {
+  margin-top: 4px;
+  padding: 3px 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  background: var(--hover-tint);
+  border-radius: 3px;
+  border-left: 2px solid var(--border);
+}
+
+/* exact match: OCR text read back plainly, with a teal rail to signal
+   "agrees" — deliberately a different color from the "Reviewed" state above
+   (this is about the content, not the workflow status). */
+.gt-diff.matched {
+  border-left-color: #72a396;
+  color: var(--muted);
+}
+
+/* ---------- sidebar boxed sections ("Page") ----------
+   Boxed treatment, distinct from the plain (unboxed) page-note/shortcuts
+   sections below it. */
+.sidebar-box { border: 1px solid var(--border); border-radius: 5px; padding: 8px; gap: 6px; }
+
+/* 3-state manual toggle (Editing / Under review / Reviewed) — a segmented
+   button group, not a checkbox, so the annotator can jump to any of the
+   three states directly — colors match the item's left-border coloring
+   above. `.inline` is the compact variant built per block in the header row
+   (renderEditableList); a bare `.review-toggle` (no modifier) doesn't appear
+   anywhere currently, but the base rules below are shared by both. */
+.review-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.review-toggle button {
+  flex: 1 1 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 6px;
+}
+.review-toggle button:not(:last-child) { border-right: 1px solid var(--border); }
+.review-toggle button:hover:not(:disabled):not(.active) { background: var(--hover-tint); }
+.review-toggle button.active[data-value="editing"] { color: #fff; background: #6f8bbd; }
+.review-toggle button.active[data-value="pending"] { color: #fff; background: #c99a3a; }
+.review-toggle button.active[data-value="done"] { color: #fff; background: #4caf7d; }
+.review-toggle button:disabled { opacity: 0.5; cursor: default; }
+
+/* Compact sizing for the inline (per-block, in the header row) toggle, so it
+   fits alongside the type tag, Illegible, and Insert-OCR-text on one line. */
+.review-toggle.inline { flex: 0 0 auto; }
+.review-toggle.inline button { flex: 0 0 auto; font-size: 10px; padding: 2px 6px; }
+
+#layout-error-note { min-height: 44px; }
+
+/* The explicit confirmation that gates page completion (see
+   computePageComplete in app.js) — bolded and given a left accent so it
+   reads as more than just another optional checkbox. */
+#layout-reviewed-field {
+  font-weight: 600;
+  border-left: 3px solid var(--accent);
+  padding-left: 6px;
+  margin-top: 2px;
 }

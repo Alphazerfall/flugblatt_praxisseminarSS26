@@ -29,6 +29,10 @@ current document's models, all sharing the same document/page navigation:
   segmenting the page similarly — if one merges several paragraphs a
   finer-grained model keeps separate, expect more block-level insert/delete
   noise instead of clean word-level diffs within a shared block.
+- **Correct (gold standard)** — an editing mode, not a comparison one: locks to
+  the Datalab output and turns the content pane into editable per-block
+  textareas for post-editing Datalab's text into a gold standard. See "Correct
+  mode" below.
 
 Model names in the dropdowns are prettified for readability (e.g. "Datalab
 API (JSON)" instead of the raw output folder name "jsonDatalab") — see
@@ -55,6 +59,108 @@ with no restart needed. `test_set` loads by default if present (falls back to
 the first document found otherwise); the model dropdown always shows the raw
 output-directory name (e.g. "jsonMistral", "MinerU") so it's obvious which
 folder on disk a given entry came from.
+
+## Correct mode (gold standard)
+
+Correct mode produces the gold transcription we measure Datalab's CER against
+(see [../pipelines/03_eval/](../pipelines/03_eval/)). Pick **Correct (gold
+standard)** in Compare mode and type your initials in the **Annotator** box —
+next to it, a counter shows how many of that annotator's pages are complete
+for the current document (`GET /api/annotator-progress`, server.py).
+
+- The middle pane becomes one auto-sized `textarea` per Datalab block, always
+  starting **empty** — the annotator transcribes each block from the scan
+  without being anchored by the OCR text. Every control for a block lives
+  right on it, nothing requires a trip to the sidebar: in the header line, its
+  type, a 3-state toggle, an **Illegible** button, and (pushed to the right)
+  an **Insert OCR text** button that accepts the OCR text as-is with one
+  click instead of retyping something that's already correct — or, on
+  annotator-added blocks (which have no OCR text), a **✕ Remove block**
+  button in that same spot instead. Below the text, a **+ Add note** button
+  reveals a small text field for anything about that specific block (✕
+  removes it again). The Page section's **Insert all OCR text** does the same
+  as the per-block button for every block on the page at once (overwrites
+  whatever's already there).
+- Focusing a block highlights its box, scrolls the scan to it, and marks it
+  as the *current* block: a glow ring around it in its review-state color
+  (see below), scrolled to the top of the list (the block list has extra
+  scroll room below the last item so even it can reach the top). Only one
+  block is ever current at a time. `Tab`/`Shift+Tab` jump straight from one
+  block's main field to the next's — the toggle/Illegible/Insert/Note
+  buttons are click-only, skipped in the tab order, so they don't get in the way.
+- Only the selected block's box is drawn on the scan by default — with ~20
+  boxes on a page, showing all of them makes the scan hard to read while
+  transcribing; every box stays clickable, just visually hidden until it's
+  the active one (or hovered, on the scan itself). **Show all boxes** (below
+  the Page section) overrides this to audit the whole layout at once.
+- **Block state** — a colored left border on the block, matching its inline
+  3-state toggle:
+  - **Editing** (blue) — never confirmed since it was last empty. No diff
+    shown yet, so a first blind read isn't spoiled by the answer.
+  - **Under review** (yellow) — confirmed at least once (blurred /
+    `Ctrl+Enter`) and has text. The OCR text is now shown beneath as a word
+    diff and *stays* shown and live-updating as you keep refining the text —
+    it does not hide again just because you're still typing. Reaching this
+    state is always automatic, including when the text matches the OCR
+    exactly: agreement is a good sign, not proof, so it's never enough on its
+    own to call something Reviewed.
+  - **Reviewed** (green) — only ever reached by the annotator's deliberate
+    choice, clicking that button on the toggle. Never set automatically.
+  Clicking any of the three jumps straight to that state (e.g. mark something
+  Reviewed without editing it, or send a mistaken Reviewed back to Under
+  review) — it's a direct-set toggle, not a checkbox. Changing it updates the
+  block in place; the list doesn't reshuffle or reset your scroll position.
+- **Illegible** (next to the toggle) — source can't be read; excludes the
+  block from scoring.
+- A page is **complete** once every block is Reviewed or Illegible *and* the
+  annotator has explicitly ticked **I've checked the reading order and
+  layout** (Page section) — a forced, deliberate confirmation, not a default:
+  **Reading order is correct** and **Layout has errors** already default to
+  "looks fine" on their own, so leaving those untouched can't be told apart
+  from having actually checked them; this third checkbox always starts
+  unticked. The status line explains which half (blocks, layout, or both) is
+  still open. That's the same `complete` flag the eval script's `--all`
+  filter reads.
+- **Picture/Figure blocks** aren't transcribed (their "OCR text" is just an AI
+  image description): the block shows the image itself; its Note (same
+  **+ Add note** control as any other block) is its only annotation. Excluded
+  from CER scoring. (`NON_TEXT_TYPES` in `app.js` and in
+  `pipelines/03_eval/build_dinglehopper_inputs.py` — keep them in sync.)
+- **Page** (sidebar) combines page-level progress/options and whole-page
+  layout review in one box:
+  - Progress summary and the automatic completion status described above.
+  - **Insert all OCR text**.
+  - **Reading order is correct** — checked by default; uncheck if Datalab's
+    block order doesn't match the page's actual reading order.
+  - **Layout has errors** + a free-text field to describe them (missed or
+    spurious regions, wrong classification, etc.) — both saved into the gold
+    standard and surfaced in the eval script's `structural_report.csv`.
+  - **I've checked the reading order and layout** — the completion gate
+    described above.
+  - A per-page **note** field for anything the other guidelines don't cover
+    (stamps, marginalia, struck-through text).
+  Below the Page box: **Show diff vs raw OCR** (or `Alt+D`) shows a word diff
+  of your correction against Datalab's raw text — per block (a strip under
+  each changed block) and, toggled on, for the whole page (red = raw OCR
+  removed, green = correction added) — and **Show all boxes**, the
+  full-layout override mentioned above. Both are viewing preferences only
+  (remembered locally), not saved into the gold.
+
+**Transcription conventions.** The gold standard is plain text scored per
+character, so:
+- **Super/subscripts** (e.g. `17` with a superscript `00` for a time): type the
+  plain inline characters — `1700`. Datalab flattens `<sup>` the same way, so
+  this scores as correct with no special markup.
+- **Soft line breaks** inside a paragraph are just spaces — the extraction and
+  scoring both treat them that way (see below), so type one line.
+- Keyboard: `Tab`/`Shift+Tab` between blocks, `Ctrl+Enter` commit & next,
+  `Alt+D` diff.
+
+Edits **autosave** (debounced) to
+`data/<dataset>/gold/annotations/<annotator>/page_<NNN>.json` via the server's
+`POST /api/save-annotation` endpoint; block ids are preserved so the gold and
+OCR stay 1:1. Because the annotator is part of the path, several people's
+versions of the same page coexist. Reopening a page reloads the saved gold.
 
 ## Adding a model's output
 
@@ -138,7 +244,8 @@ the page's width/height — only the ratio matters, not the unit).
 
 ## Files
 
-- `server.py` — static file server + `/api/manifest` endpoint
+- `server.py` — static file server + `/api/manifest` and `/api/save-annotation`
+  (Correct mode's autosave) endpoints
 - `manifest.py` — scans `data/` for documents and their per-model JSON outputs
 - `index.html` / `style.css` / `app.js` — the frontend
 - `adapters.js` — per-model JSON → common shape normalization

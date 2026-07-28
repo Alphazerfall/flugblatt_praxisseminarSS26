@@ -14,12 +14,14 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
+import re
 import signal
 import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from manifest import to_manifest_json
 
@@ -29,6 +31,39 @@ DATA_ROOT = REPO_ROOT / "data"
 mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("application/javascript", ".js")
 
+# Correction/gold-standard annotations are written under
+# data/<dataset>/gold/annotations/<annotator>/page_<NNN>.json. The annotator
+# goes into a folder + file name, so keep it to a filename-safe charset; the
+# dataset comes straight from the manifest (can contain "/", spaces, parens)
+# and is validated by containment below rather than by charset.
+ANNOTATOR_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+MAX_ANNOTATION_BYTES = 10 * 1024 * 1024  # a page's JSON is a few KB; this is just a sanity cap
+
+
+def annotator_dir(dataset: str, annotator: str) -> Path:
+    """Resolve (and validate) an annotator's annotation directory for a dataset.
+
+    Raises ValueError on anything that would escape data/ or isn't a
+    well-formed annotator — the value is attacker-controllable in principle
+    (any process can hit this dev server), so don't trust it into a path.
+    """
+    if not ANNOTATOR_RE.match(annotator or ""):
+        raise ValueError("annotator must match [A-Za-z0-9_-]{1,64}")
+    parts = [p for p in str(dataset or "").replace("\\", "/").split("/") if p]
+    if not parts or any(p in ("..", ".") for p in parts):
+        raise ValueError("invalid dataset")
+    data_root = DATA_ROOT.resolve()
+    dest = (data_root.joinpath(*parts) / "gold" / "annotations" / annotator).resolve()
+    dest.relative_to(data_root)  # raises ValueError if the path escaped data/
+    return dest
+
+
+def annotation_path(dataset: str, annotator: str, page: int) -> Path:
+    """Resolve (and validate) the on-disk path for one page's annotation."""
+    if not isinstance(page, int) or isinstance(page, bool) or not (1 <= page <= 100_000):
+        raise ValueError("page must be an integer in [1, 100000]")
+    return annotator_dir(dataset, annotator) / f"page_{page:03d}.json"
+
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -36,10 +71,20 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/manifest":
             self._send_manifest()
             return
+        if path == "/api/annotator-progress":
+            self._send_annotator_progress(urlsplit(self.path).query)
+            return
         if path == "/":
             query = urlsplit(self.path).query
             self.path = "/ocr_viewer/index.html" + (f"?{query}" if query else "")
         super().do_GET()
+
+    def do_POST(self):
+        path = urlsplit(self.path).path
+        if path == "/api/save-annotation":
+            self._save_annotation()
+            return
+        self.send_error(404, "Not found")
 
     def end_headers(self):
         # The app's own code changes constantly during development; without
@@ -62,6 +107,67 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(str(exc).encode("utf-8"))
             return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_annotator_progress(self, query):
+        # Powers the small "N/M pages complete" counter next to the
+        # Annotator field — counts this annotator's saved pages for the
+        # dataset and how many are marked complete.
+        params = parse_qs(query)
+        dataset = params.get("dataset", [""])[0]
+        annotator = params.get("annotator", [""])[0]
+        try:
+            ann_dir = annotator_dir(dataset, annotator)
+            completed = 0
+            annotated = 0
+            if ann_dir.is_dir():
+                for page_path in ann_dir.glob("page_*.json"):
+                    annotated += 1
+                    try:
+                        data = json.loads(page_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        continue
+                    if data.get("complete"):
+                        completed += 1
+            body = json.dumps({"completed": completed, "annotated": annotated}).encode("utf-8")
+        except Exception as exc:  # noqa: BLE001 - surface the reason to the client
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(str(exc).encode("utf-8"))
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _save_annotation(self):
+        # Autosave target for the viewer's Correct mode: one JSON per
+        # (annotator, page). Written atomically (temp + os.replace) so a
+        # concurrent GET of the same file — the frontend re-reads it to resume
+        # — never sees a half-written file.
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > MAX_ANNOTATION_BYTES:
+                raise ValueError("empty or oversized request body")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            dest = annotation_path(payload.get("dataset"), payload.get("annotator"), payload.get("page"))
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.with_name(dest.name + ".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, dest)
+        except Exception as exc:  # noqa: BLE001 - surface the reason to the client
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(str(exc).encode("utf-8"))
+            return
+        body = json.dumps({"ok": True, "path": f"/{dest.relative_to(REPO_ROOT).as_posix()}"}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

@@ -10,9 +10,22 @@ function escapeHtml(s) {
 // Blocks' `html` is real markup (from Datalab, or built by other adapters);
 // strip it down to plain text via a detached DOM parse (doesn't execute
 // scripts/styles, just walks the tree) rather than regexing tags out.
+//
+// Line and paragraph breaks carry whitespace that `textContent` alone drops,
+// gluing words together across lines: Datalab uses soft `<br/>`s inside a
+// paragraph ("bestimmen;<br/>das" -> "bestimmen;das", "Regensburger<br/>AStA"
+// -> "RegensburgerAStA"), which then reads as a real change the moment an
+// annotator types the natural space. So insert whitespace for <br> and around
+// block-level elements before extracting, then collapse runs to single spaces —
+// soft line breaks become ordinary word separators, which is what both the
+// word diff (token-based) and character-level CER want.
+const BLOCK_TAGS = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,tr";
+
 export function htmlToText(html) {
   const doc = new DOMParser().parseFromString(html || "", "text/html");
-  return doc.body.textContent || "";
+  for (const br of doc.body.querySelectorAll("br,hr")) br.replaceWith(" ");
+  for (const node of doc.body.querySelectorAll(BLOCK_TAGS)) node.append(" ");
+  return (doc.body.textContent || "").replace(/\s+/g, " ").trim();
 }
 
 export function pageText(modelData, pageIdx) {
