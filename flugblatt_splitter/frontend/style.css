@@ -197,12 +197,43 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: color-mix(in srgb, var(--confirm-green) 8%, var(--bg));
 }
 
+/* "Kein Inhalt" — divider/blank (incl. blank back sides)/cover pages etc.,
+   nothing to extract. Deliberately after .confirmed so a range that's both
+   gets the hatch: being flagged as non-content is the stronger signal to
+   notice while scanning. */
+.segment-box.no-content {
+  border-color: var(--muted);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent, transparent 8px,
+    color-mix(in srgb, var(--muted) 14%, transparent) 8px,
+    color-mix(in srgb, var(--muted) 14%, transparent) 16px
+  );
+}
+
 .segment-box-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
   font-size: 12px;
+}
+
+/* Grows to fill whatever space the range label and the checkbox/button group
+   don't need, so it sits inline in the header instead of taking its own row. */
+.segment-note-input {
+  flex: 1 1 140px;
+  min-width: 80px;
+}
+
+.segment-no-content-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .segment-range {

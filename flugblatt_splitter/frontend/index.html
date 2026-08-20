@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <title>Flugblatt Splitter</title>
@@ -19,14 +19,14 @@
   <div class="field">
     <label for="pdf-select">PDF</label>
     <select id="pdf-select">
-      <option value="">– select –</option>
+      <option value="">– auswählen –</option>
     </select>
   </div>
-  <button id="btn-save" type="button" disabled>Save JSON</button>
-  <button id="btn-load-json" type="button" disabled>Load JSON</button>
+  <button id="btn-save" type="button" disabled>JSON speichern</button>
+  <button id="btn-load-json" type="button" disabled>JSON laden</button>
   <span id="doc-summary" class="chip"></span>
   <div class="field">
-    <label><input type="checkbox" id="theme-toggle"> Light mode</label>
+    <label><input type="checkbox" id="theme-toggle"> Heller Modus</label>
   </div>
   <div id="status" class="status"></div>
 </header>
@@ -36,7 +36,7 @@
     <div id="preview-list"></div>
   </section>
 
-  <div id="panel-resizer" title="Drag to resize"></div>
+  <div id="panel-resizer" title="Zum Anpassen ziehen"></div>
 
   <section id="pages-panel" class="pane">
     <div id="pages-list"></div>
@@ -47,7 +47,12 @@
   <div class="segment-box">
     <div class="segment-box-header">
       <span class="segment-range"></span>
-      <button type="button" class="segment-confirm-btn">Confirm</button>
+      <input type="text" class="segment-note-input" placeholder="Notiz, z. B. Seite fehlt, Trennseite, beschädigt, unleserlich">
+      <label class="segment-no-content-toggle">
+        <input type="checkbox" class="segment-no-content-checkbox">
+        Kein Inhalt
+      </label>
+      <button type="button" class="segment-confirm-btn">Bestätigen</button>
     </div>
     <div class="segment-box-grid"></div>
   </div>
@@ -57,7 +62,7 @@
   <div class="preview-thumb" data-page-number="">
     <div class="preview-thumb-img-wrap">
       <img loading="lazy" alt="">
-      <button type="button" class="preview-thumb-cut" title="Add/remove cut after this page"></button>
+      <button type="button" class="preview-thumb-cut" title="Schnitt nach dieser Seite hinzufügen/entfernen"></button>
     </div>
     <span class="preview-thumb-label"></span>
   </div>

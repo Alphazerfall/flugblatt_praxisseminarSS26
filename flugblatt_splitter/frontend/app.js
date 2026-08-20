@@ -138,12 +138,13 @@ function computeSegments(pageCount, cuts) {
 }
 
 // Creates blank segmentMeta entries for newly-appeared segment start pages
-// (never overwrites data the user, or a saved file, already provided). Not
-// shown in the UI yet, but round-tripped through save/load so nothing is lost.
+// (never overwrites data the user, or a saved file, already provided).
+// title/date still aren't shown in the UI (possible future manual entry),
+// but round-trip through save/load so nothing is lost.
 function ensureSegmentMeta(segments) {
   for (const seg of segments) {
     if (!state.segmentMeta.has(seg.startPage)) {
-      state.segmentMeta.set(seg.startPage, { title: '', date: '', confirmed: false })
+      state.segmentMeta.set(seg.startPage, { title: '', date: '', confirmed: false, noContent: false, note: '' })
     }
   }
 }
@@ -161,7 +162,7 @@ async function loadPdfList() {
 async function onSelectPdf() {
   const pdf = el.pdfSelect.value
   if (!pdf) return
-  setStatus('Loading pages…')
+  setStatus('Seiten werden geladen…')
   el.btnSave.disabled = true
   el.btnLoadJson.disabled = true
 
@@ -183,9 +184,9 @@ async function onSelectPdf() {
   // Best-effort: restore a previously saved segmentation for this PDF.
   try {
     await loadSegmentationFromServer(pdf, { silent: true })
-    setStatus('Loaded saved segmentation.')
+    setStatus('Gespeicherte Segmentierung geladen.')
   } catch {
-    setStatus(`${state.pageCount} pages loaded.`)
+    setStatus(`${state.pageCount} Seiten geladen.`)
   }
 
   renderSegments()
@@ -310,7 +311,7 @@ function buildPageEl(page) {
   const frag = el.tplPage.content.cloneNode(true)
   const root = frag.querySelector('.page')
   root.dataset.pageNumber = String(page.pageNumber)
-  root.querySelector('.page-number-badge').textContent = `Page ${page.pageNumber}`
+  root.querySelector('.page-number-badge').textContent = `Seite ${page.pageNumber}`
 
   const img = root.querySelector('.thumb')
   // Reserve the image's real aspect ratio up front — otherwise the box
@@ -319,7 +320,7 @@ function buildPageEl(page) {
   // scroll-to-page animation targeting one of those later pages.
   if (page.width && page.height) img.style.aspectRatio = `${page.width} / ${page.height}`
   img.src = `/api/thumbnail?pdf=${encodeURIComponent(state.pdf)}&page=${page.pageNumber}`
-  img.alt = `Page ${page.pageNumber}`
+  img.alt = `Seite ${page.pageNumber}`
 
   // Clicking anywhere on the card snaps it fully into view at the top —
   // handy when a click lands on a page that's only partially scrolled into
@@ -359,18 +360,39 @@ function buildSegmentBoxEl(seg) {
   const root = frag.querySelector('.segment-box')
 
   root.querySelector('.segment-range').textContent =
-    seg.startPage === seg.endPage ? `Page ${seg.startPage}` : `Pages ${seg.startPage}–${seg.endPage}`
+    seg.startPage === seg.endPage ? `Seite ${seg.startPage}` : `Seiten ${seg.startPage}–${seg.endPage}`
 
   const confirmBtn = root.querySelector('.segment-confirm-btn')
   const applyConfirmedStyle = () => {
     root.classList.toggle('confirmed', meta.confirmed)
     confirmBtn.classList.toggle('confirmed', meta.confirmed)
-    confirmBtn.textContent = meta.confirmed ? 'Confirmed' : 'Confirm'
+    confirmBtn.textContent = meta.confirmed ? 'Bestätigt' : 'Bestätigen'
   }
   applyConfirmedStyle()
   confirmBtn.addEventListener('click', () => {
     meta.confirmed = !meta.confirmed
     applyConfirmedStyle()
+  })
+
+  // "Kein Inhalt" — marks a range as a divider/blank page (incl. a blank
+  // back side)/cover etc. rather than an actual document, so it can be
+  // visually skipped and later excluded from metadata extraction.
+  // Orthogonal to "Bestätigen": a range can be both reviewed and confirmed
+  // to have no content.
+  const noContentCheckbox = root.querySelector('.segment-no-content-checkbox')
+  noContentCheckbox.checked = meta.noContent
+  root.classList.toggle('no-content', meta.noContent)
+  noContentCheckbox.addEventListener('change', () => {
+    meta.noContent = noContentCheckbox.checked
+    root.classList.toggle('no-content', meta.noContent)
+  })
+
+  // Free-text problem flag, e.g. "Seite fehlt" — rides along with the
+  // segment, no separate save step.
+  const noteInput = root.querySelector('.segment-note-input')
+  noteInput.value = meta.note
+  noteInput.addEventListener('input', () => {
+    meta.note = noteInput.value
   })
 
   const gridEl = root.querySelector('.segment-box-grid')
@@ -388,8 +410,8 @@ function buildPreviewThumbEl(page) {
 
   const img = root.querySelector('img')
   img.src = `/api/thumbnail?pdf=${encodeURIComponent(state.pdf)}&page=${page.pageNumber}&dpi=${PREVIEW_DPI}`
-  img.alt = `Page ${page.pageNumber}`
-  root.querySelector('.preview-thumb-label').textContent = `Page ${page.pageNumber}`
+  img.alt = `Seite ${page.pageNumber}`
+  root.querySelector('.preview-thumb-label').textContent = `Seite ${page.pageNumber}`
   root.addEventListener('click', () => jumpToPage(page.pageNumber))
 
   const cutBtn = root.querySelector('.preview-thumb-cut')
@@ -412,14 +434,14 @@ function buildPreviewThumbEl(page) {
 function updatePreviewCutButton(cutBtn, afterPage) {
   const confirmed = state.cuts.has(afterPage)
   cutBtn.classList.toggle('confirmed', confirmed)
-  cutBtn.title = confirmed ? 'Remove cut' : 'Add cut after this page'
+  cutBtn.title = confirmed ? 'Schnitt entfernen' : 'Schnitt nach dieser Seite hinzufügen'
 }
 
 function renderSegments() {
   const segments = computeSegments(state.pageCount, state.cuts)
   ensureSegmentMeta(segments)
 
-  el.docSummary.textContent = `${state.pageCount} pages · ${segments.length} segments`
+  el.docSummary.textContent = `${state.pageCount} Seiten · ${segments.length} Segmente`
   buildPreviewPanel(segments)
 }
 
@@ -433,6 +455,8 @@ async function saveJson() {
       start_page: seg.startPage,
       end_page: seg.endPage,
       confirmed: meta.confirmed,
+      no_content: meta.noContent,
+      note: meta.note,
     }
   })
   try {
@@ -441,9 +465,9 @@ async function saveJson() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ pdf: state.pdf, segments }),
     })
-    setStatus(`Saved ${new Date().toLocaleTimeString()} — ${result.saved_to}`, { flash: true })
+    setStatus(`Gespeichert ${new Date().toLocaleTimeString()} — ${result.saved_to}`, { flash: true })
   } catch (err) {
-    setStatus(`Error saving: ${err.message}`)
+    setStatus(`Fehler beim Speichern: ${err.message}`)
   }
 }
 
@@ -451,7 +475,13 @@ async function loadSegmentationFromServer(pdf, { silent = false } = {}) {
   const doc = await fetchJSON(`/api/segmentation/load?pdf=${encodeURIComponent(pdf)}`)
   state.cuts = new Set(doc.segments.slice(0, -1).map((s) => s.end_page))
   state.segmentMeta = new Map(
-    doc.segments.map((s) => [s.start_page, { title: s.title, date: s.date || '', confirmed: s.confirmed }]),
+    doc.segments.map((s) => [s.start_page, {
+      title: s.title,
+      date: s.date || '',
+      confirmed: s.confirmed,
+      noContent: s.no_content || false,
+      note: s.note || '',
+    }]),
   )
   if (!silent) renderSegments()
 }
@@ -460,9 +490,9 @@ async function loadJsonButtonClicked() {
   try {
     await loadSegmentationFromServer(state.pdf)
     renderSegments()
-    setStatus('Segmentation loaded.')
+    setStatus('Segmentierung geladen.')
   } catch (err) {
-    setStatus(`No saved segmentation found: ${err.message}`)
+    setStatus(`Keine gespeicherte Segmentierung gefunden: ${err.message}`)
   }
 }
 
@@ -533,4 +563,4 @@ document.addEventListener('keydown', (event) => {
   }
 })
 
-loadPdfList().catch((err) => setStatus(`Error loading PDF list: ${err.message}`))
+loadPdfList().catch((err) => setStatus(`Fehler beim Laden der PDF-Liste: ${err.message}`))
