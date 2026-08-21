@@ -258,10 +258,12 @@ function updateCurrentIndicator() {
   // own border/glow grows beyond a normal thumbnail's box (see
   // .preview-thumb.current img in style.css), so when it lands right at the
   // scrollable panel's own top edge, the default gap isn't enough and the
-  // glow reads as clipped by the panel itself. Always prioritizes the thumb
-  // itself being clearly in view; if that pushes its segment box's own
-  // header above the fold, that's fine.
-  scrollToElement(el.previewPanel, thumb, { offset: 20 })
+  // glow reads as clipped by the panel itself. Deliberately generous (not
+  // just enough for the glow) so part of the previous row stays visible
+  // above it too, for context on where you scrolled from. Always prioritizes
+  // the thumb itself being clearly in view; if that pushes its segment box's
+  // own header above the fold, that's fine.
+  scrollToElement(el.previewPanel, thumb, { offset: 50 })
 }
 
 // Native scrollIntoView({behavior: 'smooth'}) has no speed control and feels
