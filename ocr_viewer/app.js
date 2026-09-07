@@ -91,7 +91,7 @@ const state = {
   pageNum: 1, // 1-indexed, matches pdfjs
   numPages: 0,
   pdfPageSizes: [], // [{width,height}, ...] in PDF points, 0-indexed; fallback reference for formats without their own page size
-  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "entities" | "correct"
+  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "entities" | "ner-summary" | "correct"
   a: { model: null, data: null, entities: null, baseUrl: "" },
   b: { model: null, data: null, entities: null, baseUrl: "" },
   renderToken: 0, // guards against races when switching pages/models fast
@@ -456,6 +456,8 @@ async function renderAll() {
       renderStructuredDiffContent(panes.a, pageDataA, state.b.data, state.a.baseUrl, state.b.baseUrl);
     } else if (state.compareMode === "entities") {
       renderEntityContent(panes.a, pageDataA, state.a.entities);
+    } else if (state.compareMode === "ner-summary") {
+      renderNerSummary(panes.a, state.a.entities);
     } else if (state.compareMode === "correct") {
       await ensureAnnotationForCurrentPage(pageDataA);
       if (token !== state.renderToken) return;
@@ -610,7 +612,7 @@ function renderContentList(pane, pageData, baseUrl) {
   });
 }
 
-function appendEntityText(container, text, entities) {
+function appendEntityText(container, text, entities, onBlacklist) {
   let cursor = 0;
   for (const entity of [...entities].sort((a, b) => a.start - b.start)) {
     const start = Math.max(cursor, Number(entity.start));
@@ -623,6 +625,15 @@ function appendEntityText(container, text, entities) {
     mark.title = entity.label;
     mark.textContent = text.slice(start, end);
     container.appendChild(mark);
+    if (onBlacklist) {
+      const button = document.createElement("button");
+      button.className = "entity-blacklist-button";
+      button.type = "button";
+      button.textContent = "Blacklist";
+      button.title = `${entity.text} als ${entity.label} unterdrücken`;
+      button.addEventListener("click", () => onBlacklist(entity, button));
+      container.appendChild(button);
+    }
     cursor = end;
   }
   if (cursor < text.length) container.appendChild(document.createTextNode(text.slice(cursor)));
@@ -663,7 +674,7 @@ function renderEntityContent(pane, pageData, entitiesByBlock) {
     text.className = "entity-text";
     const source = record?.text || htmlToText(block.html);
     const entities = record?.entities || [];
-    appendEntityText(text, source, entities);
+    appendEntityText(text, source, entities, blacklistEntity);
     body.append(tag, text);
     item.append(num, body);
     item.addEventListener("mouseenter", () => setActive(pane, i));
@@ -671,6 +682,164 @@ function renderEntityContent(pane, pageData, entitiesByBlock) {
     pane.contentList.appendChild(item);
     pane.itemEls.push(item);
   });
+}
+
+// Speichert das Entity labelbezogen und lädt die aktuelle NER-Ausgabe neu.
+async function blacklistEntity(entity, button, row = button.closest("li")) {
+  button.disabled = true;
+  try {
+    const res = await fetch("/api/ner-blacklist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: entity.label, text: entity.text }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    button.textContent = "Gesperrt";
+    button.classList.add("blacklist-success");
+    if (row) row.classList.add("blacklisted");
+    setStatus(`Blacklist: ${entity.text} (${entity.label})`);
+  } catch (err) {
+    button.disabled = false;
+    setStatus(`Blacklist konnte nicht gespeichert werden: ${err.message}`);
+  }
+}
+
+// Fasst alle NER-Begriffe des aktuellen Datensatzes zusammen.
+function renderNerSummary(pane, entitiesByBlock) {
+  pane.itemEls = [];
+  pane.contentList.innerHTML = "";
+  if (!entitiesByBlock) {
+    const message = document.createElement("div");
+    message.className = "empty-msg";
+    message.textContent = "Für dieses Modell sind keine NER-Ergebnisse vorhanden.";
+    pane.contentList.appendChild(message);
+    return;
+  }
+
+  const counts = new Map();
+  let entityCount = 0;
+  for (const record of entitiesByBlock.values()) {
+    for (const entity of record.entities || []) {
+      entityCount += 1;
+      const key = `${entity.label}\u0000${entity.text.toLocaleLowerCase("de-DE")}`;
+      const existing = counts.get(key);
+      counts.set(key, {
+        label: entity.label,
+        text: existing?.text || entity.text,
+        count: (existing?.count || 0) + 1,
+        pages: existing?.pages || new Set(),
+      });
+      if (record.page !== undefined && record.page !== null) {
+        counts.get(key).pages.add(String(record.page));
+      }
+    }
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "ner-summary";
+  const heading = document.createElement("h2");
+  heading.textContent = `NER-Zusammenfassung: ${state.doc?.id || "Datensatz"}`;
+  summary.appendChild(heading);
+
+  const meta = document.createElement("p");
+  meta.className = "ner-summary-meta";
+  meta.textContent = `${entityCount} Entitäten in ${entitiesByBlock.size} OCR-Blöcken; ${counts.size} unterschiedliche Begriffe`;
+  summary.appendChild(meta);
+
+  const filterBar = document.createElement("div");
+  filterBar.className = "ner-summary-filters";
+  const list = document.createElement("ul");
+  list.className = "ner-summary-list";
+  const entities = [...counts.values()];
+  let sortMode = "term";
+
+  const renderRows = (label) => {
+    list.innerHTML = "";
+    const visibleEntities = entities
+      .filter((entity) => label === "ALL" || entity.label === label)
+      .sort((a, b) => {
+        if (sortMode === "count") return b.count - a.count || a.text.localeCompare(b.text, "de-DE");
+        if (sortMode === "label") return a.label.localeCompare(b.label) || a.text.localeCompare(b.text, "de-DE");
+        return a.text.localeCompare(b.text, "de-DE") || a.label.localeCompare(b.label);
+      });
+    for (const entity of visibleEntities) {
+      const item = document.createElement("li");
+      const text = document.createElement("span");
+      text.textContent = entity.text;
+      const details = document.createElement("small");
+      details.textContent = `${entity.label} · ${entity.count}`;
+      details.style.setProperty("--entity-color", ENTITY_COLORS[entity.label] || "#aaa");
+      const button = document.createElement("button");
+      button.className = "entity-blacklist-button summary-blacklist-button";
+      button.type = "button";
+      button.textContent = "Blacklist";
+      button.title = `${entity.text} als ${entity.label} unterdrücken`;
+      button.addEventListener("click", () => blacklistEntity(entity, button, item));
+      const pagesButton = document.createElement("button");
+      pagesButton.className = "entity-pages-button";
+      pagesButton.type = "button";
+      pagesButton.textContent = "Seiten anzeigen";
+      const pages = document.createElement("span");
+      pages.className = "entity-pages";
+      pages.hidden = true;
+      pagesButton.addEventListener("click", () => {
+        const expanded = item.classList.toggle("pages-expanded");
+        pagesButton.textContent = expanded ? "Seiten ausblenden" : "Seiten anzeigen";
+        pages.hidden = !expanded;
+      });
+      for (const page of [...entity.pages].sort((a, b) => Number(a) - Number(b))) {
+        const pageLink = document.createElement("button");
+        pageLink.type = "button";
+        pageLink.className = "entity-page-link";
+        pageLink.textContent = page;
+        pageLink.title = `Zu Seite ${page} springen`;
+        pageLink.addEventListener("click", () => goToPage(Number(page)));
+        pages.appendChild(pageLink);
+      }
+      item.append(text, details, button, pagesButton, pages);
+      list.appendChild(item);
+    }
+  };
+
+  const labels = ["ALL", ...new Set(entities.map((entity) => entity.label))];
+  for (const label of labels) {
+    const filterButton = document.createElement("button");
+    filterButton.type = "button";
+    filterButton.className = "ner-filter-button";
+    filterButton.dataset.label = label;
+    filterButton.textContent = label === "ALL" ? "Alle" : label;
+    if (label === "ALL") filterButton.classList.add("active");
+    filterButton.addEventListener("click", () => {
+      filterBar.querySelectorAll(".ner-filter-button").forEach((button) => button.classList.remove("active"));
+      filterButton.classList.add("active");
+      renderRows(label);
+    });
+    filterBar.appendChild(filterButton);
+  }
+  summary.appendChild(filterBar);
+
+  const sortBar = document.createElement("div");
+  sortBar.className = "ner-summary-sorts";
+  for (const [mode, caption] of [["term", "Begriff A–Z"], ["label", "Label"], ["count", "Häufigkeit"]]) {
+    const sortButton = document.createElement("button");
+    sortButton.type = "button";
+    sortButton.className = "ner-sort-button";
+    sortButton.textContent = caption;
+    if (mode === sortMode) sortButton.classList.add("active");
+    sortButton.addEventListener("click", () => {
+      sortMode = mode;
+      sortBar.querySelectorAll(".ner-sort-button").forEach((button) => button.classList.remove("active"));
+      sortButton.classList.add("active");
+      const activeFilter = filterBar.querySelector(".ner-filter-button.active");
+      renderRows(activeFilter?.dataset.label || "ALL");
+    });
+    sortBar.appendChild(sortButton);
+  }
+  summary.appendChild(sortBar);
+
+  renderRows("ALL");
+  summary.appendChild(list);
+  pane.contentList.appendChild(summary);
 }
 
 // ---------- word diff (view: diff) ----------
@@ -1586,10 +1755,10 @@ function updateLayout() {
   el.main.classList.toggle("split-rows", mode === "side");
   el.diffPane.hidden = !showDiffPane;
   el.contentPaneA.hidden = showDiffPane;
-  el.modelBField.hidden = mode === "single" || mode === "entities" || correct;
+  el.modelBField.hidden = mode === "single" || mode === "entities" || mode === "ner-summary" || correct;
   el.annotatorField.hidden = !correct;
   el.correctSidebar.hidden = !correct;
-  el.entityLegendDetails.hidden = mode !== "entities";
+  el.entityLegendDetails.hidden = mode !== "entities" && mode !== "ner-summary";
   // Model A is pinned to Datalab in Correct mode; re-enable otherwise unless
   // the current document simply has no OCR output.
   el.modelSelect.disabled = correct || !(state.doc && state.doc.models.length);
@@ -1802,7 +1971,7 @@ el.toggleBoxes.addEventListener("change", () => {
     el.docSelect.value = target;
 
     const requestedMode = params.get("mode");
-    if (["side", "diff", "diff-struct", "entities", "correct"].includes(requestedMode)) {
+    if (["side", "diff", "diff-struct", "entities", "ner-summary", "correct"].includes(requestedMode)) {
       state.compareMode = requestedMode;
       el.compareMode.value = requestedMode;
     }

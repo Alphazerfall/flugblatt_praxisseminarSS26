@@ -27,6 +27,13 @@ from manifest import to_manifest_json
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = REPO_ROOT / "data"
+NER_TERMS_DIR = REPO_ROOT / "pipelines" / "03_ner" / "terms"
+NER_TERM_FILES = {
+    "ACTOR": "actors.txt",
+    "LOC": "places.txt",
+    "TIME": "times.txt",
+    "PERSON": "persons.txt",
+}
 
 mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("application/javascript", ".js")
@@ -83,6 +90,9 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == "/api/save-annotation":
             self._save_annotation()
+            return
+        if path == "/api/ner-blacklist":
+            self._add_ner_blacklist()
             return
         self.send_error(404, "Not found")
 
@@ -168,6 +178,43 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(str(exc).encode("utf-8"))
             return
         body = json.dumps({"ok": True, "path": f"/{dest.relative_to(REPO_ROOT).as_posix()}"}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _add_ner_blacklist(self):
+        """Speichert einen Entity-Text als labelbezogenen Blacklist-Eintrag."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > 16 * 1024:
+                raise ValueError("empty or oversized request body")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            label = str(payload.get("label") or "").upper()
+            term = str(payload.get("text") or "").strip()
+            if label not in NER_TERM_FILES:
+                raise ValueError("invalid NER label")
+            if not term or "\n" in term or "\r" in term:
+                raise ValueError("invalid NER term")
+
+            path = (NER_TERMS_DIR / NER_TERM_FILES[label]).resolve()
+            path.relative_to(NER_TERMS_DIR.resolve())
+            lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+            normalized = term.casefold()
+            filtered = [
+                line for line in lines
+                if line.strip().lstrip("!").casefold() != normalized
+            ]
+            filtered.append(f"!{term}")
+            path.write_text("\n".join(filtered) + "\n", encoding="utf-8")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(str(exc).encode("utf-8"))
+            return
+        body = json.dumps({"ok": True, "label": label, "text": term}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

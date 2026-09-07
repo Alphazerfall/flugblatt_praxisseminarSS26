@@ -259,6 +259,68 @@ button:hover { border-color: var(--accent); }
 
 .content-pane { background: var(--panel); padding: 8px 12px; }
 
+.ner-summary {
+  max-width: 900px;
+  margin: 8px auto;
+  padding: 8px 12px 28px;
+}
+
+.ner-summary h2 {
+  margin: 8px 0 6px;
+  font-size: 18px;
+}
+
+.ner-summary-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ner-summary-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 8px;
+}
+
+.ner-filter-button.active {
+  border-color: var(--accent);
+  background: var(--active-tint);
+  color: var(--text);
+}
+
+.ner-summary-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.ner-sort-button.active {
+  border-color: var(--accent);
+  background: var(--active-tint);
+  color: var(--text);
+}
+
+.ner-summary-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ner-summary-list li {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) 7rem 5.5rem 8rem minmax(8rem, 1.5fr);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ner-summary-list small {
+  color: var(--entity-color, var(--muted));
+  white-space: nowrap;
+}
+
 /* Correct mode only (toggled in updateLayout()): padding-bottom means the
    last block can be scrolled up to the top of the view (nothing left below
    it to scroll past would otherwise strand it near the bottom). padding-top
@@ -298,6 +360,60 @@ button:hover { border-color: var(--accent); }
   border-bottom: 2px solid var(--entity-color);
   padding: 0 1px;
 }
+
+.entity-blacklist-button {
+  margin: 0 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.entity-blacklist-button.blacklist-success {
+  border-color: #62a77b;
+  color: #62a77b;
+}
+
+.ner-summary-list li.blacklisted {
+  background: color-mix(in srgb, #62a77b 12%, transparent);
+}
+
+.summary-blacklist-button {
+  flex: 0 0 auto;
+}
+
+.entity-pages-button,
+.entity-page-link {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
+.entity-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.entity-pages[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .ner-summary-list li {
+    grid-template-columns: minmax(9rem, 1fr) auto auto;
+  }
+
+  .ner-summary-list li small { grid-column: 1; }
+  .ner-summary-list .entity-pages-button { grid-column: 2; grid-row: 1; }
+  .ner-summary-list .summary-blacklist-button { grid-column: 3; grid-row: 1; }
+  .ner-summary-list .entity-pages { grid-column: 1 / -1; }
+}
+
+.entity-pages {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.entity-pages[hidden] { display: none; }
 
 /* Structured diff (view: diff-struct) — a whole block present in only one
    model, tinted with the same red/green semantics as the inline word-diff
