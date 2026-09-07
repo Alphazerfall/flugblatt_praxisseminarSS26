@@ -1,0 +1,1 @@
+# Zusätzliche Zeitbegriffe; Datums- und Uhrzeitmuster werden automatisch erkannt

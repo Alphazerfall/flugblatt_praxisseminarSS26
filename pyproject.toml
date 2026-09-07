@@ -24,6 +24,11 @@ dependencies = [
 eval = [
     "dinglehopper",
 ]
+# NER pipeline (pipelines/03_ner/ner.py). Also requires the German large spaCy model:
+#   python -m spacy download de_core_news_lg
+ner = [
+    "spacy>=3.7",
+]
 
 [tool.setuptools]
 packages = []
