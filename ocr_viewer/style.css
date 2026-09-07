@@ -285,6 +285,20 @@ button:hover { border-color: var(--accent); }
   background: var(--active-tint);
 }
 
+.entity-item { align-items: flex-start; }
+
+.entity-text {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.entity-mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--entity-color) 28%, transparent);
+  border-bottom: 2px solid var(--entity-color);
+  padding: 0 1px;
+}
+
 /* Structured diff (view: diff-struct) — a whole block present in only one
    model, tinted with the same red/green semantics as the inline word-diff
    spans (.diff-del/.diff-ins below) and the flat word-diff legend chips. */

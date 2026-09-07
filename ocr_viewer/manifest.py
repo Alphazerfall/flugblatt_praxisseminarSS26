@@ -209,6 +209,9 @@ def to_manifest_json(data_root: Path) -> dict:
             entry = {"name": m.name, "kind": m.kind, "base_url": f"{url_for(m.base_dir)}/"}
             if m.kind == "json":
                 entry["json_url"] = url_for(m.json_path)
+                ner_path = m.json_path.with_suffix(".ner.json")
+                if ner_path.is_file():
+                    entry["ner_url"] = url_for(ner_path)
             elif m.kind == "json_pages":
                 entry["json_urls"] = [url_for(p) for p in m.json_paths]
             elif m.kind == "markdown":

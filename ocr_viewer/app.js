@@ -57,6 +57,8 @@ const el = {
   themeToggle: document.getElementById("theme-toggle"),
   status: document.getElementById("status"),
   typeLegend: document.getElementById("type-legend"),
+  entityLegendDetails: document.getElementById("entity-legend-details"),
+  entityLegend: document.getElementById("entity-legend"),
   main: document.getElementById("main"),
   rowB: document.getElementById("row-b"),
   rowResizer: document.getElementById("row-resizer"),
@@ -89,9 +91,9 @@ const state = {
   pageNum: 1, // 1-indexed, matches pdfjs
   numPages: 0,
   pdfPageSizes: [], // [{width,height}, ...] in PDF points, 0-indexed; fallback reference for formats without their own page size
-  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "correct"
-  a: { model: null, data: null, baseUrl: "" },
-  b: { model: null, data: null, baseUrl: "" },
+  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "entities" | "correct"
+  a: { model: null, data: null, entities: null, baseUrl: "" },
+  b: { model: null, data: null, entities: null, baseUrl: "" },
   renderToken: 0, // guards against races when switching pages/models fast
   // --- correction / gold-standard mode ---
   annotator: "", // whose gold this is; goes into the save path/filename
@@ -222,6 +224,25 @@ function buildTypeLegend() {
   }
 }
 buildTypeLegend();
+
+const ENTITY_COLORS = {
+  PERSON: "#d98b8b",
+  LOC: "#78a9d1",
+  ACTOR: "#d5a65a",
+  RECIPIENT: "#78b99b",
+  TIME: "#b18bd1",
+};
+
+function buildEntityLegend() {
+  el.entityLegend.innerHTML = "";
+  for (const [type, color] of Object.entries(ENTITY_COLORS)) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = `<span class="swatch" style="--c:${color}"></span>${type}`;
+    el.entityLegend.appendChild(chip);
+  }
+}
+buildEntityLegend();
 
 // Last-resort net: data/ is rewritten live by external pipeline scripts
 // while this app is open, so requests can fail in places that are awkward
@@ -381,21 +402,33 @@ async function loadModelOutput(model) {
   return normalize(await res.json(), state.pdfPageSizes).data;
 }
 
+async function loadEntities(model) {
+  if (!model?.ner_url) return null;
+  const res = await fetch(model.ner_url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const byBlock = new Map();
+  for (const record of await res.json()) byBlock.set(record.block_id, record);
+  return byBlock;
+}
+
 async function setSlotModel(slot, model) {
   const s = state[slot];
   s.model = model;
   if (!model) {
     s.data = null;
+    s.entities = null;
     s.baseUrl = "";
     return;
   }
   setStatus(`Loading ${displayNameFor(model)} output ...`);
   try {
     s.data = await loadModelOutput(model);
+    s.entities = await loadEntities(model);
     s.baseUrl = model.base_url;
     setStatus("");
   } catch (err) {
     s.data = null;
+    s.entities = null;
     s.baseUrl = "";
     setStatus(`Failed to load/parse ${displayNameFor(model)} output: ${err.message}`);
   }
@@ -421,6 +454,8 @@ async function renderAll() {
       renderDiff();
     } else if (state.compareMode === "diff-struct") {
       renderStructuredDiffContent(panes.a, pageDataA, state.b.data, state.a.baseUrl, state.b.baseUrl);
+    } else if (state.compareMode === "entities") {
+      renderEntityContent(panes.a, pageDataA, state.a.entities);
     } else if (state.compareMode === "correct") {
       await ensureAnnotationForCurrentPage(pageDataA);
       if (token !== state.renderToken) return;
@@ -570,6 +605,69 @@ function renderContentList(pane, pageData, baseUrl) {
     item.addEventListener("mouseenter", () => setActive(pane, i));
     item.addEventListener("mouseleave", () => setActive(pane, -1));
 
+    pane.contentList.appendChild(item);
+    pane.itemEls.push(item);
+  });
+}
+
+function appendEntityText(container, text, entities) {
+  let cursor = 0;
+  for (const entity of [...entities].sort((a, b) => a.start - b.start)) {
+    const start = Math.max(cursor, Number(entity.start));
+    const end = Math.max(start, Number(entity.end));
+    if (start > cursor) container.appendChild(document.createTextNode(text.slice(cursor, start)));
+    if (end <= start) continue;
+    const mark = document.createElement("mark");
+    mark.className = "entity-mark";
+    mark.style.setProperty("--entity-color", ENTITY_COLORS[entity.label] || "#aaa");
+    mark.title = entity.label;
+    mark.textContent = text.slice(start, end);
+    container.appendChild(mark);
+    cursor = end;
+  }
+  if (cursor < text.length) container.appendChild(document.createTextNode(text.slice(cursor)));
+}
+
+function renderEntityContent(pane, pageData, entitiesByBlock) {
+  pane.itemEls = [];
+  pane.contentList.innerHTML = "";
+  if (!pageData) {
+    const msg = document.createElement("div");
+    msg.className = "empty-msg";
+    msg.textContent = "No OCR output found on this page.";
+    pane.contentList.appendChild(msg);
+    return;
+  }
+  if (!entitiesByBlock) {
+    const msg = document.createElement("div");
+    msg.className = "empty-msg";
+    msg.textContent = "No entity output found for this model.";
+    pane.contentList.appendChild(msg);
+    return;
+  }
+
+  pageData.blocks.forEach((block, i) => {
+    const record = entitiesByBlock.get(block.id);
+    const item = document.createElement("div");
+    item.className = "content-item entity-item";
+    const num = document.createElement("div");
+    num.className = "num";
+    num.style.setProperty("--box-color", colorFor(block.type));
+    num.textContent = i + 1;
+    const body = document.createElement("div");
+    body.className = "body";
+    const tag = document.createElement("div");
+    tag.className = "type-tag";
+    tag.textContent = block.type;
+    const text = document.createElement("div");
+    text.className = "entity-text";
+    const source = record?.text || htmlToText(block.html);
+    const entities = record?.entities || [];
+    appendEntityText(text, source, entities);
+    body.append(tag, text);
+    item.append(num, body);
+    item.addEventListener("mouseenter", () => setActive(pane, i));
+    item.addEventListener("mouseleave", () => setActive(pane, -1));
     pane.contentList.appendChild(item);
     pane.itemEls.push(item);
   });
@@ -1488,9 +1586,10 @@ function updateLayout() {
   el.main.classList.toggle("split-rows", mode === "side");
   el.diffPane.hidden = !showDiffPane;
   el.contentPaneA.hidden = showDiffPane;
-  el.modelBField.hidden = mode === "single" || correct;
+  el.modelBField.hidden = mode === "single" || mode === "entities" || correct;
   el.annotatorField.hidden = !correct;
   el.correctSidebar.hidden = !correct;
+  el.entityLegendDetails.hidden = mode !== "entities";
   // Model A is pinned to Datalab in Correct mode; re-enable otherwise unless
   // the current document simply has no OCR output.
   el.modelSelect.disabled = correct || !(state.doc && state.doc.models.length);
@@ -1703,7 +1802,7 @@ el.toggleBoxes.addEventListener("change", () => {
     el.docSelect.value = target;
 
     const requestedMode = params.get("mode");
-    if (["side", "diff", "diff-struct", "correct"].includes(requestedMode)) {
+    if (["side", "diff", "diff-struct", "entities", "correct"].includes(requestedMode)) {
       state.compareMode = requestedMode;
       el.compareMode.value = requestedMode;
     }

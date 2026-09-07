@@ -31,6 +31,7 @@
       <option value="side">Side-by-side</option>
       <option value="diff">Word diff</option>
       <option value="diff-struct">Structured diff</option>
+      <option value="entities">Entities</option>
       <option value="correct">Correct (gold standard)</option>
     </select>
   </div>
@@ -59,6 +60,10 @@
   <details class="legend-details" id="legend-details">
     <summary>Legend</summary>
     <div id="type-legend" class="legend"></div>
+  </details>
+  <details class="legend-details" id="entity-legend-details" hidden>
+    <summary>Entity legend</summary>
+    <div id="entity-legend" class="legend"></div>
   </details>
   <div id="status" class="status"></div>
 </header>
