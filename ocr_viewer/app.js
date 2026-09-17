@@ -789,7 +789,54 @@ function renderTopicsSummary(pane) {
   }
   summary.appendChild(list);
 
+  // manche Scans buendeln mehrere eigenstaendige Flugblaetter (segments.json) -
+  // wenn vorhanden, zusaetzlich pro Flugblatt statt nur fuer den ganzen Scan zeigen.
+  if (doc.segments?.length) {
+    const segHeading = document.createElement("h3");
+    segHeading.className = "topics-segments-heading";
+    segHeading.textContent = `Einzelne Flugblätter in diesem Scan (${doc.segments.length})`;
+    summary.appendChild(segHeading);
+
+    const segList = document.createElement("div");
+    segList.className = "topics-segments-list";
+    for (const seg of doc.segments) {
+      segList.appendChild(topicSegmentEl(seg, topicsById));
+    }
+    summary.appendChild(segList);
+  }
+
   pane.contentList.appendChild(summary);
+}
+
+function topicSegmentEl(seg, topicsById) {
+  const card = document.createElement("div");
+  card.className = "topic-segment";
+
+  const dominant = seg.dominant_topic !== null && seg.dominant_topic !== undefined ? topicsById.get(seg.dominant_topic) : null;
+  const pages = seg.start_page === seg.end_page ? `Seite ${seg.start_page}` : `Seiten ${seg.start_page}–${seg.end_page}`;
+  const header = document.createElement("div");
+  header.className = "topic-segment-header";
+  header.textContent = `${pages}: ${dominant ? dominant.label : "kein eindeutiges Thema"}`;
+  card.appendChild(header);
+  if (dominant) card.appendChild(topicWordsEl(dominant.top_words));
+
+  const others = Object.entries(seg.weights || {})
+    .map(([id, weight]) => [Number(id), weight])
+    .sort((a, b) => b[1] - a[1])
+    .filter(([topicId]) => topicId !== seg.dominant_topic)
+    .slice(0, 5); // keep segment cards compact - just the next few most relevant topics
+  if (others.length) {
+    const list = document.createElement("ul");
+    list.className = "topic-segment-weights";
+    for (const [topicId, weight] of others) {
+      const topic = topicsById.get(topicId);
+      const li = document.createElement("li");
+      li.textContent = `${topic?.label || `Topic ${topicId}`} – ${Math.round(weight * 100)}%`;
+      list.appendChild(li);
+    }
+    card.appendChild(list);
+  }
+  return card;
 }
 
 function topicWordsEl(words) {

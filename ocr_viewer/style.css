@@ -382,6 +382,35 @@ button:hover { border-color: var(--accent); }
   .topic-row .topics-words { grid-column: 1 / -1; }
 }
 
+.topics-segments-heading {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.topics-segments-list {
+  display: grid;
+  gap: 8px;
+}
+
+.topic-segment {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.topic-segment-header {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.topic-segment-weights {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* Correct mode only (toggled in updateLayout()): padding-bottom means the
    last block can be scrolled up to the top of the view (nothing left below
    it to scroll past would otherwise strand it near the bottom). padding-top

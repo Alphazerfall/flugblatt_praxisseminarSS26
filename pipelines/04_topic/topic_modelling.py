@@ -23,12 +23,24 @@ Requires the optional "topics" dependency group:
     pip install -e ".[topics]"
     python -m spacy download de_core_news_lg   # optional, for lemmatized topic words
 
+A single scanned PDF can contain several distinct leaflets glued together;
+`<doc_id>.segments.json` next to the OCR output (written by an earlier,
+manual splitting step) records each leaflet's page range, including
+multi-page leaflets. When present, blocks are also aggregated per segment
+so each actually-distinct leaflet gets its own topic weights, in addition
+to the whole-scan aggregate (kept for backward compatibility with
+ocr_viewer, which still matches documents by the scanned PDF's id).
+
 Output: a single data/topics/topics.json:
     {
       "topics": [{"id": int, "label": str, "top_words": [str, ...], "count": int}, ...],
       "documents": [
         {"id": str, "path": str, "dataset": str,
-         "dominant_topic": int | null, "weights": {"<topic_id>": float, ...}}, ...
+         "dominant_topic": int | null, "weights": {"<topic_id>": float, ...},
+         "segments": [                                  # only if segments.json exists
+           {"segment_id": int, "start_page": int, "end_page": int,
+            "dominant_topic": int | null, "weights": {"<topic_id>": float, ...}}, ...
+         ]}, ...
       ]
     }
 
@@ -89,6 +101,15 @@ def log(message):
     print(message, file=sys.stderr)
 
 
+# Normalisierte Gewichte + dominantes Topic fuer eine Liste von Block-Topic-IDs (-1 = Ausreisser).
+def topic_summary(topic_ids):
+    counts = Counter(t for t in topic_ids if t != -1)
+    total = sum(counts.values())
+    weights = {str(t): c / total for t, c in counts.items()} if total else {}
+    dominant = max(counts.items(), key=lambda kv: kv[1])[0] if total else None
+    return dominant, weights
+
+
 # Entfernt HTML-Tags, decodiert Entities und normalisiert Leerzeichen.
 def strip_html(fragment):
     text = TAG_RE.sub(" ", fragment or "")
@@ -96,6 +117,9 @@ def strip_html(fragment):
     return WS_RE.sub(" ", text).strip()
 
 
+# Liefert (page, text) statt nur text - die Seitenzahl wird gebraucht, um
+# Bloecke anhand von segments.json den einzelnen (bereits getrennten) Flugblaettern
+# innerhalb eines mehrseitigen Scans zuzuordnen.
 def iter_blocks(node):
     children = node.get("children")
     if children:
@@ -106,7 +130,7 @@ def iter_blocks(node):
         return
     text = strip_html(node.get("html"))
     if text:
-        yield text
+        yield node.get("page"), text
 
 
 def resolve_inputs(paths):
@@ -140,6 +164,36 @@ def rel_path(path):
         return str(path)
 
 
+# Manche Scans (data/raw/<Nr. X>/<doc_id>.pdf) enthalten mehrere eigenstaendige
+# Flugblaetter; <doc_id>.segments.json (neben dem OCR-Ordner, gleiche Ebene wie
+# dataset_for()) haelt die bereits von Hand bestaetigten Seitenbereiche fest
+# (start_page/end_page, 1-basiert, ein Segment kann mehrere Seiten umfassen).
+# Gibt None zurueck, wenn keine Datei existiert (z.B. test_set) - dann bleibt
+# der ganze Scan wie bisher ein einziges Leaflet.
+def load_segments(path, doc_id):
+    parent = Path(path).parent
+    if parent.name == doc_id:
+        parent = parent.parent
+    seg_path = parent / f"{doc_id}.segments.json"
+    if not seg_path.is_file():
+        return None
+    try:
+        with seg_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        log(f"Skipping segments file {seg_path}: {exc}")
+        return None
+    segments = []
+    for seg in data.get("segments", []):
+        if seg.get("no_content"):
+            continue
+        start_page, end_page = seg.get("start_page"), seg.get("end_page")
+        if start_page is None or end_page is None:
+            continue
+        segments.append({"segment_id": seg.get("id"), "start_page": start_page, "end_page": end_page})
+    return segments or None
+
+
 def build_leaflets(files):
     leaflets = []
     seen_keys = set()
@@ -157,11 +211,21 @@ def build_leaflets(files):
             log(f"Skipping duplicate leaflet id {key}: {path}")
             continue
         seen_keys.add(key)
+
+        blocks_with_page = list(iter_blocks(data))
+        segments = []
+        for seg in load_segments(path, doc_id) or []:
+            lo, hi = seg["start_page"] - 1, seg["end_page"] - 1  # 0-basiert, wie das "page"-Feld der OCR-Bloecke
+            block_indices = [i for i, (page, _text) in enumerate(blocks_with_page) if page is not None and lo <= page <= hi]
+            if block_indices:
+                segments.append({**seg, "block_indices": block_indices})
+
         leaflets.append({
             "id": doc_id,
             "path": rel_path(path),
             "dataset": dataset,
-            "blocks": list(iter_blocks(data)),
+            "blocks": [text for _page, text in blocks_with_page],
+            "segments": segments,
         })
     return leaflets
 
@@ -287,17 +351,29 @@ def main():
         n = len(leaflet["blocks"])
         leaflet_topics = topics[idx:idx + n]
         idx += n
-        counts = Counter(t for t in leaflet_topics if t != -1)
-        total = sum(counts.values())
-        weights = {str(t): c / total for t, c in counts.items()} if total else {}
-        dominant = max(counts.items(), key=lambda kv: kv[1])[0] if total else None
-        documents_out.append({
+        dominant, weights = topic_summary(leaflet_topics)
+        doc_out = {
             "id": leaflet["id"],
             "path": leaflet["path"],
             "dataset": leaflet["dataset"],
             "dominant_topic": dominant,
             "weights": weights,
-        })
+        }
+        # scans already split (via segments.json) into several actual leaflets get a
+        # finer per-leaflet breakdown too, without changing the whole-scan entry above
+        # (which ocr_viewer still matches by the scan/PDF's own id).
+        if leaflet["segments"]:
+            doc_out["segments"] = []
+            for seg in leaflet["segments"]:
+                seg_dominant, seg_weights = topic_summary([leaflet_topics[i] for i in seg["block_indices"]])
+                doc_out["segments"].append({
+                    "segment_id": seg["segment_id"],
+                    "start_page": seg["start_page"],
+                    "end_page": seg["end_page"],
+                    "dominant_topic": seg_dominant,
+                    "weights": seg_weights,
+                })
+        documents_out.append(doc_out)
     documents_out.sort(key=lambda d: d["id"])
 
     output_path = Path(args.output)
