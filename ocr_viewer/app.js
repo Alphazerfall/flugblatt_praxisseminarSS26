@@ -91,9 +91,11 @@ const state = {
   pageNum: 1, // 1-indexed, matches pdfjs
   numPages: 0,
   pdfPageSizes: [], // [{width,height}, ...] in PDF points, 0-indexed; fallback reference for formats without their own page size
-  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "entities" | "ner-summary" | "correct"
+  compareMode: "single", // "single" | "side" | "diff" | "diff-struct" | "entities" | "ner-summary" | "topics" | "correct"
   a: { model: null, data: null, entities: null, baseUrl: "" },
   b: { model: null, data: null, entities: null, baseUrl: "" },
+  topicsModel: null, // fetched once from manifest.topics_url and cached for the session
+  topicsModelLoaded: false,
   renderToken: 0, // guards against races when switching pages/models fast
   // --- correction / gold-standard mode ---
   annotator: "", // whose gold this is; goes into the save path/filename
@@ -458,6 +460,9 @@ async function renderAll() {
       renderEntityContent(panes.a, pageDataA, state.a.entities);
     } else if (state.compareMode === "ner-summary") {
       renderNerSummary(panes.a, state.a.entities);
+    } else if (state.compareMode === "topics") {
+      await loadTopicsModel();
+      renderTopicsSummary(panes.a);
     } else if (state.compareMode === "correct") {
       await ensureAnnotationForCurrentPage(pageDataA);
       if (token !== state.renderToken) return;
@@ -702,6 +707,101 @@ async function blacklistEntity(entity, button, row = button.closest("li")) {
     button.disabled = false;
     setStatus(`Blacklist konnte nicht gespeichert werden: ${err.message}`);
   }
+}
+
+// Laedt das (einmal pro Sitzung gecachte) Topic-Modell, falls vorhanden.
+async function loadTopicsModel() {
+  if (state.topicsModelLoaded) return state.topicsModel;
+  state.topicsModelLoaded = true;
+  if (!state.manifest?.topics_url) {
+    state.topicsModel = null;
+    return null;
+  }
+  try {
+    const res = await fetch(state.manifest.topics_url);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    state.topicsModel = await res.json();
+  } catch (err) {
+    state.topicsModel = null;
+    setStatus(`Failed to load topics model: ${err.message}`);
+  }
+  return state.topicsModel;
+}
+
+// Zeigt das Hauptthema und die Themenverteilung des aktuellen Flugblatts.
+function renderTopicsSummary(pane) {
+  pane.itemEls = [];
+  pane.contentList.innerHTML = "";
+  const model = state.topicsModel;
+  const doc = model?.documents.find((d) => `${d.dataset}/${d.id}` === `${state.doc?.dataset}/${state.doc?.id}`)
+    || model?.documents.find((d) => d.id === state.doc?.id);
+  if (!model || !doc) {
+    const message = document.createElement("div");
+    message.className = "empty-msg";
+    message.textContent = "Für dieses Dokument sind keine Topic-Modelling-Ergebnisse vorhanden.";
+    pane.contentList.appendChild(message);
+    return;
+  }
+
+  const topicsById = new Map(model.topics.map((t) => [t.id, t]));
+  const summary = document.createElement("div");
+  summary.className = "ner-summary";
+  const heading = document.createElement("h2");
+  heading.textContent = `Themen: ${doc.id}`;
+  summary.appendChild(heading);
+
+  const weightEntries = Object.entries(doc.weights || {})
+    .map(([id, weight]) => [Number(id), weight])
+    .sort((a, b) => b[1] - a[1]);
+
+  const meta = document.createElement("p");
+  meta.className = "ner-summary-meta";
+  meta.textContent = weightEntries.length
+    ? `${weightEntries.length} Thema/Themen erkannt`
+    : "Keinem Thema eindeutig zuordenbar (nur Ausreißer-Blöcke).";
+  summary.appendChild(meta);
+
+  const dominant = doc.dominant_topic !== null && doc.dominant_topic !== undefined ? topicsById.get(doc.dominant_topic) : null;
+  if (dominant) {
+    const card = document.createElement("div");
+    card.className = "topic-dominant";
+    const title = document.createElement("strong");
+    title.textContent = `Hauptthema: ${dominant.label}`;
+    card.appendChild(title);
+    card.appendChild(topicWordsEl(dominant.top_words));
+    summary.appendChild(card);
+  }
+
+  const list = document.createElement("ul");
+  list.className = "topics-list";
+  for (const [topicId, weight] of weightEntries) {
+    const topic = topicsById.get(topicId);
+    const item = document.createElement("li");
+    item.className = "topic-row";
+    if (topicId === doc.dominant_topic) item.classList.add("topic-dominant-row");
+    const label = document.createElement("span");
+    label.className = "topic-row-label";
+    label.textContent = topic?.label || `Topic ${topicId}`;
+    const percent = document.createElement("small");
+    percent.textContent = `${Math.round(weight * 100)}%`;
+    item.append(label, percent, topicWordsEl(topic?.top_words));
+    list.appendChild(item);
+  }
+  summary.appendChild(list);
+
+  pane.contentList.appendChild(summary);
+}
+
+function topicWordsEl(words) {
+  const wrap = document.createElement("div");
+  wrap.className = "topics-words";
+  for (const word of words || []) {
+    const chip = document.createElement("span");
+    chip.className = "topic-word";
+    chip.textContent = word;
+    wrap.appendChild(chip);
+  }
+  return wrap;
 }
 
 // Fasst alle NER-Begriffe des aktuellen Datensatzes zusammen.
@@ -1755,7 +1855,7 @@ function updateLayout() {
   el.main.classList.toggle("split-rows", mode === "side");
   el.diffPane.hidden = !showDiffPane;
   el.contentPaneA.hidden = showDiffPane;
-  el.modelBField.hidden = mode === "single" || mode === "entities" || mode === "ner-summary" || correct;
+  el.modelBField.hidden = mode === "single" || mode === "entities" || mode === "ner-summary" || mode === "topics" || correct;
   el.annotatorField.hidden = !correct;
   el.correctSidebar.hidden = !correct;
   el.entityLegendDetails.hidden = mode !== "entities" && mode !== "ner-summary";
@@ -1971,7 +2071,7 @@ el.toggleBoxes.addEventListener("change", () => {
     el.docSelect.value = target;
 
     const requestedMode = params.get("mode");
-    if (["side", "diff", "diff-struct", "entities", "ner-summary", "correct"].includes(requestedMode)) {
+    if (["side", "diff", "diff-struct", "entities", "ner-summary", "topics", "correct"].includes(requestedMode)) {
       state.compareMode = requestedMode;
       el.compareMode.value = requestedMode;
     }

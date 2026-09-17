@@ -225,7 +225,12 @@ def to_manifest_json(data_root: Path) -> dict:
             "pdf_url": url_for(doc.pdf_path),
             "models": models,
         })
-    return {"documents": out}
+
+    manifest = {"documents": out}
+    topics_path = data_root / "topics" / "topics.json"
+    if topics_path.is_file():
+        manifest["topics_url"] = url_for(topics_path)
+    return manifest
 
 
 if __name__ == "__main__":

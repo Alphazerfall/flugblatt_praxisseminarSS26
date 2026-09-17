@@ -29,6 +29,16 @@ eval = [
 ner = [
     "spacy>=3.7",
 ]
+# Topic modelling pipeline (pipelines/04_topic/topic_modelling.py), BERTopic-
+# based. Also benefits from the German large spaCy model (optional, only
+# used to lemmatize topic-representation words):
+#   python -m spacy download de_core_news_lg
+topics = [
+    "bertopic>=0.16",
+    "sentence-transformers>=2.2",
+    "stop-words",
+    "spacy>=3.7",
+]
 
 [tool.setuptools]
 packages = []
