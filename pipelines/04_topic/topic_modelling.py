@@ -31,6 +31,15 @@ so each actually-distinct leaflet gets its own topic weights, in addition
 to the whole-scan aggregate (kept for backward compatibility with
 ocr_viewer, which still matches documents by the scanned PDF's id).
 
+If a `<doc_id>.ner.json` sidecar exists (written by pipelines/03_ner/
+ner.py), PERSON/LOC/ACTOR entities recognized in a block are appended as
+normalized pseudo-words (e.g. "person_rudi_dutschke") to that block's text
+before c-TF-IDF vectorization only - embeddings still use the raw text -
+so named actors/places surface directly as topic words instead of being
+diluted among generic vocabulary. TIME entities are left alone since dates
+aren't a useful "topic". A missing sidecar degrades gracefully to plain
+topic modelling, same as a missing segments.json.
+
 Output: a single data/topics/topics.json:
     {
       "topics": [{"id": int, "label": str, "top_words": [str, ...], "count": int}, ...],
@@ -62,6 +71,8 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
+from umap import UMAP 
+from sklearn.cluster import HDBSCAN
 
 try:
     from bertopic import BERTopic
@@ -81,6 +92,10 @@ try:
     import spacy
 except ImportError:
     spacy = None
+
+from huggingface_hub import login
+
+HF_LOGIN_TOKEN = "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"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -117,9 +132,10 @@ def strip_html(fragment):
     return WS_RE.sub(" ", text).strip()
 
 
-# Liefert (page, text) statt nur text - die Seitenzahl wird gebraucht, um
+# Liefert (page, block_id, text) statt nur text - die Seitenzahl wird gebraucht, um
 # Bloecke anhand von segments.json den einzelnen (bereits getrennten) Flugblaettern
-# innerhalb eines mehrseitigen Scans zuzuordnen.
+# innerhalb eines mehrseitigen Scans zuzuordnen, die block_id, um Entities aus
+# der passenden .ner.json dem richtigen Block zuzuordnen.
 def iter_blocks(node):
     children = node.get("children")
     if children:
@@ -130,7 +146,7 @@ def iter_blocks(node):
         return
     text = strip_html(node.get("html"))
     if text:
-        yield node.get("page"), text
+        yield node.get("page"), node.get("id"), text
 
 
 def resolve_inputs(paths):
@@ -194,6 +210,43 @@ def load_segments(path, doc_id):
     return segments or None
 
 
+# Laedt die von ner.py erzeugte <doc_id>.ner.json (falls vorhanden) und baut eine
+# block_id -> entities Zuordnung. Anders als segments.json liegt sie NEBEN der
+# Quelldatei selbst (default_output_path() in ner.py), nicht eine Ebene hoeher.
+def load_ner(path, doc_id):
+    ner_path = Path(path).parent / f"{doc_id}.ner.json"
+    if not ner_path.is_file():
+        return None
+    try:
+        with ner_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        log(f"Skipping NER file {ner_path}: {exc}")
+        return None
+    return {block.get("block_id"): block.get("entities", []) for block in data}
+
+
+BOOST_ENTITY_LABELS = {"PERSON", "LOC", "ACTOR"}  # TIME entities aren't a useful "topic"
+ENTITY_WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+# Baut aus einer Entity ein rein alphabetisches Pseudo-Wort (Ziffern/Satzzeichen entfernt),
+# damit benannte Akteure/Orte im c-TF-IDF-Vokabular als eigenes Token auftauchen.
+def entity_token(label, text):
+    slug = "_".join(ENTITY_WORD_RE.findall(text.lower()))
+    return f"{label.lower()}_{slug}" if slug else None
+
+
+# Alle PERSON/LOC/ACTOR-Entities eines Blocks als leerzeichengetrennte Pseudo-Woerter.
+def block_entity_tokens(entities):
+    tokens = (
+        entity_token(e.get("label"), e.get("text", ""))
+        for e in entities
+        if e.get("label") in BOOST_ENTITY_LABELS
+    )
+    return " ".join(t for t in tokens if t)
+
+
 def build_leaflets(files):
     leaflets = []
     seen_keys = set()
@@ -216,15 +269,19 @@ def build_leaflets(files):
         segments = []
         for seg in load_segments(path, doc_id) or []:
             lo, hi = seg["start_page"] - 1, seg["end_page"] - 1  # 0-basiert, wie das "page"-Feld der OCR-Bloecke
-            block_indices = [i for i, (page, _text) in enumerate(blocks_with_page) if page is not None and lo <= page <= hi]
+            block_indices = [i for i, (page, _bid, _text) in enumerate(blocks_with_page) if page is not None and lo <= page <= hi]
             if block_indices:
                 segments.append({**seg, "block_indices": block_indices})
+
+        ner_by_block = load_ner(path, doc_id) or {}
+        entity_tokens = [block_entity_tokens(ner_by_block.get(block_id, [])) for _page, block_id, _text in blocks_with_page]
 
         leaflets.append({
             "id": doc_id,
             "path": rel_path(path),
             "dataset": dataset,
-            "blocks": [text for _page, text in blocks_with_page],
+            "blocks": [text for _page, _bid, text in blocks_with_page],
+            "entity_tokens": entity_tokens,
             "segments": segments,
         })
     return leaflets
@@ -270,10 +327,22 @@ def build_vectorizer():
         preprocessor=clean_preprocessor,
         stop_words=stopwords,
         ngram_range=(1, 2),
-        token_pattern=r"(?u)\b[^\W\d_]{3,}\b",
+        # underscore allowed (not just letters) so entity_token()'s "label_multi_word" pseudo-words stay one token
+        token_pattern=r"(?u)\b[^\W\d]{3,}\b",
         min_df=5,
         max_df=0.9,
     )
+
+
+ENTITY_TOKEN_RE = re.compile(r"^(?:person|loc|actor)_(.+)$")
+
+
+# Zeigt ein Entity-Pseudo-Wort wieder als lesbaren Namen an ("person_rudi_dutschke" -> "Rudi Dutschke").
+def humanize_word(word):
+    match = ENTITY_TOKEN_RE.match(word)
+    if not match:
+        return word
+    return match.group(1).replace("_", " ").title()
 
 
 def parse_args():
@@ -286,8 +355,24 @@ def parse_args():
     p.add_argument("--lemma-model", default=DEFAULT_LEMMA_MODEL, help=f"spaCy model for lemmatizing topic words (default: {DEFAULT_LEMMA_MODEL})")
     return p.parse_args()
 
+def build_hdbscan_model():
+    return HDBSCAN(
+        min_cluster_size=25,
+        min_samples=5,
+        metric="euclidean",
+        cluster_selection_method="eom"
+    )
+
+def build_umap_model():
+    return UMAP(
+        n_neighbors=30,
+        min_dist=0.0,
+        n_components=5,
+        metric="cosine",
+    )
 
 def main():
+    login(token=HF_LOGIN_TOKEN)
     args = parse_args()
     if BERTopic is None or SentenceTransformer is None:
         sys.exit(
@@ -301,18 +386,26 @@ def main():
 
     leaflets = build_leaflets(files)
     raw_blocks = [block for leaflet in leaflets for block in leaflet["blocks"]]
+    entity_tokens = [tokens for leaflet in leaflets for tokens in leaflet["entity_tokens"]]
     if len(raw_blocks) < 2:
         sys.exit(f"Only {len(raw_blocks)} text block(s) found across {len(leaflets)} leaflet(s); need more to fit a topic model.")
     log(f"{len(leaflets)} leaflets, {len(raw_blocks)} text blocks")
+    n_boosted = sum(1 for t in entity_tokens if t)
+    if n_boosted:
+        log(f"NER boosting: {n_boosted}/{len(raw_blocks)} blocks have PERSON/LOC/ACTOR entity tokens from .ner.json sidecars")
 
     nlp = build_nlp(args.lemma_model)
     lemmatized_blocks = lemmatize_texts(raw_blocks, nlp)
+    # append entity pseudo-words to the c-TF-IDF input only; embeddings below stay on raw_blocks
+    augmented_blocks = [f"{lemma} {tokens}".strip() if tokens else lemma for lemma, tokens in zip(lemmatized_blocks, entity_tokens)]
 
     log(f"Embedding {len(raw_blocks)} blocks with '{args.embedding_model}' ...")
     embedder = SentenceTransformer(args.embedding_model)
     embeddings = embedder.encode(raw_blocks, show_progress_bar=True, batch_size=64)
 
     topic_model = BERTopic(
+        umap_model=build_umap_model(),
+        hdbscan_model=build_hdbscan_model(),
         vectorizer_model=build_vectorizer(),
         calculate_probabilities=False,
         min_topic_size=args.min_topic_size,
@@ -324,14 +417,14 @@ def main():
         verbose=True,
     )
     log("Fitting BERTopic ...")
-    topics, _ = topic_model.fit_transform(lemmatized_blocks, embeddings=embeddings)
+    topics, _ = topic_model.fit_transform(augmented_blocks, embeddings=embeddings)
 
     topic_ids = sorted(t for t in set(topics) if t != -1)
     topics_out = []
     empty_topic_ids = set()
     for topic_id in topic_ids:
         words = topic_model.get_topic(topic_id) or []
-        top_words = [w for w, _score in words[:10] if w]
+        top_words = [humanize_word(w) for w, _score in words[:10] if w]
         if not top_words:
             empty_topic_ids.add(topic_id)
             continue
