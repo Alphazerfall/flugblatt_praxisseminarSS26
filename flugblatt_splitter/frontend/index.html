@@ -26,6 +26,9 @@
   <button id="btn-load-json" type="button" disabled>JSON laden</button>
   <span id="doc-summary" class="chip"></span>
   <div class="field">
+    <label><input type="checkbox" id="metadata-toggle"> Metadaten anzeigen</label>
+  </div>
+  <div class="field">
     <label><input type="checkbox" id="theme-toggle"> Heller Modus</label>
   </div>
   <div id="status" class="status"></div>
@@ -54,6 +57,7 @@
       </label>
       <button type="button" class="segment-confirm-btn">Bestätigen</button>
     </div>
+    <div class="segment-extracted-meta"></div>
     <div class="segment-box-grid"></div>
   </div>
 </template>

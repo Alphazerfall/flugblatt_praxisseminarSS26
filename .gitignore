@@ -24,3 +24,9 @@ Thumbs.db
 
 # Data
 data/
+
+# Claude Code (lokale Berechtigungen)
+.claude/settings.json
+
+# Notizen
+/seg*.txt

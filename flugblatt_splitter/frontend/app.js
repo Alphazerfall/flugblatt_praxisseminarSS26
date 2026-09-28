@@ -16,6 +16,7 @@ const el = {
   btnSave: document.getElementById('btn-save'),
   btnLoadJson: document.getElementById('btn-load-json'),
   themeToggle: document.getElementById('theme-toggle'),
+  metadataToggle: document.getElementById('metadata-toggle'),
   status: document.getElementById('status'),
   app: document.getElementById('app'),
   panelResizer: document.getElementById('panel-resizer'),
@@ -38,6 +39,20 @@ el.themeToggle.addEventListener('change', () => {
   const theme = el.themeToggle.checked ? 'light' : 'dark'
   document.documentElement.dataset.theme = theme
   localStorage.setItem(THEME_KEY, theme)
+})
+
+// Off by default (extracted metadata is a review aid, not the primary view) -
+// only shown once explicitly turned on, then remembered like the theme.
+const METADATA_VISIBLE_KEY = 'flugblatt-splitter-metadata-visible'
+function applyMetadataVisibility(visible) {
+  document.body.classList.toggle('metadata-hidden', !visible)
+}
+const metadataVisible = localStorage.getItem(METADATA_VISIBLE_KEY) === 'true'
+el.metadataToggle.checked = metadataVisible
+applyMetadataVisibility(metadataVisible)
+el.metadataToggle.addEventListener('change', () => {
+  applyMetadataVisibility(el.metadataToggle.checked)
+  localStorage.setItem(METADATA_VISIBLE_KEY, String(el.metadataToggle.checked))
 })
 
 // Draggable split between the two panes — the right-hand detailed view can
@@ -88,6 +103,8 @@ const state = {
   pages: [],                 // [{pageNumber, width, height}]
   cuts: new Set(),           // human-confirmed cut points ("cut after page N")
   segmentMeta: new Map(),    // startPage -> {title, date, confirmed} — title/date not editable in the UI yet
+  extractedMeta: new Map(),  // "startPage_endPage" -> {title, issuers: [{surface, role}], dateText, dateIso} from extract_metadata_v2.py, read-only
+  knownOrgKeys: new Set(),   // normalized names/acronyms from organizations.draft.json, for canonical-match highlighting
   pageEls: new Map(),        // pageNumber -> page element (right-hand detailed list)
   currentVisiblePage: null,  // page currently scrolled into view on the right — mirrored as a highlight on the left
 }
@@ -169,6 +186,7 @@ async function onSelectPdf() {
   state.pdf = pdf
   state.cuts = new Set()
   state.segmentMeta = new Map()
+  state.extractedMeta = new Map()
   state.pageEls = new Map()
 
   const doc = await fetchJSON(`/api/document?pdf=${encodeURIComponent(pdf)}`)
@@ -188,6 +206,10 @@ async function onSelectPdf() {
   } catch {
     setStatus(`${state.pageCount} Seiten geladen.`)
   }
+
+  // Best-effort: overlay any LLM-extracted metadata (title/org/date), purely
+  // for display — silently absent if extract_metadata.py hasn't run yet.
+  await loadExtractedMetadata(pdf)
 
   renderSegments()
   el.btnSave.disabled = false
@@ -397,6 +419,38 @@ function buildSegmentBoxEl(seg) {
     meta.note = noteInput.value
   })
 
+  const extractedEl = root.querySelector('.segment-extracted-meta')
+  const extracted = state.extractedMeta.get(`${seg.startPage}_${seg.endPage}`)
+  const issuers = (extracted?.issuers || []).filter((i) => i.role === 'issuer')
+  const signatories = (extracted?.issuers || []).filter((i) => i.role === 'signatory')
+  if (extracted && (extracted.title || issuers.length || signatories.length || extracted.dateText)) {
+    extractedEl.replaceChildren()
+    const titleEl = document.createElement('strong')
+    titleEl.textContent = extracted.title || '(kein Titel)'
+    extractedEl.appendChild(titleEl)
+
+    if (issuers.length) {
+      extractedEl.appendChild(document.createTextNode(' — '))
+      issuers.forEach((org, i) => {
+        if (i > 0) extractedEl.appendChild(document.createTextNode(', '))
+        const orgEl = document.createElement('span')
+        orgEl.textContent = org.surface
+        const known = isKnownOrg(org.surface)
+        orgEl.className = 'org-tag ' + (known ? 'org-known' : 'org-unknown')
+        orgEl.title = known ? 'in der Normdatei (organizations.draft.json)' : 'nicht in der Normdatei — noch unaufgelöst'
+        extractedEl.appendChild(orgEl)
+      })
+    }
+    if (signatories.length) {
+      extractedEl.appendChild(document.createTextNode(
+        (issuers.length ? '; ' : ' — ') + 'Unterzeichner: ' + signatories.map((s) => s.surface).join(', ')))
+    }
+    const dateDisplay = extracted.dateIso ? `${extracted.dateText} (iso: ${extracted.dateIso})` : extracted.dateText
+    if (dateDisplay) extractedEl.appendChild(document.createTextNode(' · ' + dateDisplay))
+  } else {
+    extractedEl.remove()
+  }
+
   const gridEl = root.querySelector('.segment-box-grid')
   for (let p = seg.startPage; p <= seg.endPage; p++) {
     gridEl.appendChild(buildPreviewThumbEl(state.pages[p - 1]))
@@ -488,6 +542,67 @@ async function loadSegmentationFromServer(pdf, { silent = false } = {}) {
   if (!silent) renderSegments()
 }
 
+// Mirrors compare_metadata.py's norm()/org_keys(): a normalized full-string
+// key plus every ALL-CAPS token of plausible acronym length, so "SDS" and
+// "Sozialistischer Deutscher Studentenbund (SDS)" resolve to the same key.
+function normOrg(s) {
+  return (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function orgKeys(name) {
+  const keys = new Set([normOrg(name)])
+  for (const token of (name || '').split(/[^A-ZÄÖÜ]+/)) {
+    if (token.length >= 2 && token.length <= 6) keys.add(token.toLowerCase())
+  }
+  keys.delete('')
+  return keys
+}
+
+// The normdatei is corpus-wide, not per-PDF, so this is loaded once at
+// startup (see bottom of file) rather than on every onSelectPdf().
+async function loadOrganizations() {
+  state.knownOrgKeys = new Set()
+  try {
+    const orgs = await fetchJSON('/api/organizations/load')
+    for (const org of orgs) {
+      for (const key of orgKeys(org.name)) state.knownOrgKeys.add(key)
+      for (const key of orgKeys(org.full_name)) state.knownOrgKeys.add(key)
+      for (const variant of org.variants || []) {
+        for (const key of orgKeys(variant)) state.knownOrgKeys.add(key)
+      }
+    }
+  } catch {
+    // no normdatei published yet — every org then just shows as "unknown"
+  }
+}
+
+function isKnownOrg(surface) {
+  for (const key of orgKeys(surface)) {
+    if (state.knownOrgKeys.has(key)) return true
+  }
+  return false
+}
+
+// Keyed by exact "startPage_endPage" so it only ever attaches to a segment
+// whose boundaries match what extract_metadata_v2.py actually saw — a range
+// re-cut since then just shows nothing rather than a stale/wrong match.
+async function loadExtractedMetadata(pdf) {
+  state.extractedMeta = new Map()
+  try {
+    const doc = await fetchJSON(`/api/metadata/load?pdf=${encodeURIComponent(pdf)}`)
+    for (const s of doc.segments) {
+      state.extractedMeta.set(`${s.start_page}_${s.end_page}`, {
+        title: s.title || '',
+        issuers: s.issuers || [],
+        dateText: s.date_text || '',
+        dateIso: s.date_iso || '',
+      })
+    }
+  } catch {
+    // no extracted metadata for this pdf yet — leave the map empty
+  }
+}
+
 async function loadJsonButtonClicked() {
   try {
     await loadSegmentationFromServer(state.pdf)
@@ -566,3 +681,4 @@ document.addEventListener('keydown', (event) => {
 })
 
 loadPdfList().catch((err) => setStatus(`Fehler beim Laden der PDF-Liste: ${err.message}`))
+loadOrganizations()

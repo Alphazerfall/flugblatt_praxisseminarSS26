@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = REPO_ROOT / "data"
+ORGANIZATIONS_PATH = REPO_ROOT / "docs" / "korpus" / "findmittel" / "organizations.draft.json"
 
 # --- Rendering --------------------------------------------------------------
 THUMBNAIL_DPI = 110  # overridable per-request via ?dpi= (the frontend uses this

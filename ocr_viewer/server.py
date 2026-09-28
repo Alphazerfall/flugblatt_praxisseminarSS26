@@ -40,6 +40,22 @@ ANNOTATOR_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_ANNOTATION_BYTES = 10 * 1024 * 1024  # a page's JSON is a few KB; this is just a sanity cap
 
 
+def annotations_root(dataset: str) -> Path:
+    """Resolve (and validate) a dataset's gold/annotations/ directory.
+
+    Raises ValueError on anything that would escape data/ — the value is
+    attacker-controllable in principle (any process can hit this dev
+    server), so don't trust it into a path.
+    """
+    parts = [p for p in str(dataset or "").replace("\\", "/").split("/") if p]
+    if not parts or any(p in ("..", ".") for p in parts):
+        raise ValueError("invalid dataset")
+    data_root = DATA_ROOT.resolve()
+    dest = (data_root.joinpath(*parts) / "gold" / "annotations").resolve()
+    dest.relative_to(data_root)  # raises ValueError if the path escaped data/
+    return dest
+
+
 def annotator_dir(dataset: str, annotator: str) -> Path:
     """Resolve (and validate) an annotator's annotation directory for a dataset.
 
@@ -49,13 +65,7 @@ def annotator_dir(dataset: str, annotator: str) -> Path:
     """
     if not ANNOTATOR_RE.match(annotator or ""):
         raise ValueError("annotator must match [A-Za-z0-9_-]{1,64}")
-    parts = [p for p in str(dataset or "").replace("\\", "/").split("/") if p]
-    if not parts or any(p in ("..", ".") for p in parts):
-        raise ValueError("invalid dataset")
-    data_root = DATA_ROOT.resolve()
-    dest = (data_root.joinpath(*parts) / "gold" / "annotations" / annotator).resolve()
-    dest.relative_to(data_root)  # raises ValueError if the path escaped data/
-    return dest
+    return annotations_root(dataset) / annotator
 
 
 def annotation_path(dataset: str, annotator: str, page: int) -> Path:
@@ -73,6 +83,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/api/annotator-progress":
             self._send_annotator_progress(urlsplit(self.path).query)
+            return
+        if path == "/api/page-annotators":
+            self._send_page_annotators(urlsplit(self.path).query)
             return
         if path == "/":
             query = urlsplit(self.path).query
@@ -134,6 +147,44 @@ class Handler(SimpleHTTPRequestHandler):
                     if data.get("complete"):
                         completed += 1
             body = json.dumps({"completed": completed, "annotated": annotated}).encode("utf-8")
+        except Exception as exc:  # noqa: BLE001 - surface the reason to the client
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(str(exc).encode("utf-8"))
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_page_annotators(self, query):
+        # Powers the sidebar's per-page annotator switcher: which annotators
+        # have already saved *this* page (for the current document), so you
+        # can jump to their version instead of retyping initials blind.
+        params = parse_qs(query)
+        dataset = params.get("dataset", [""])[0]
+        try:
+            page = int(params.get("page", ["0"])[0])
+        except ValueError:
+            page = 0
+        try:
+            root = annotations_root(dataset)
+            annotators = []
+            if root.is_dir():
+                for ann_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+                    page_path = ann_dir / f"page_{page:03d}.json"
+                    if not page_path.is_file():
+                        continue
+                    complete = False
+                    try:
+                        data = json.loads(page_path.read_text(encoding="utf-8"))
+                        complete = bool(data.get("complete"))
+                    except (OSError, json.JSONDecodeError):
+                        pass
+                    annotators.append({"name": ann_dir.name, "complete": complete})
+            body = json.dumps({"annotators": annotators}).encode("utf-8")
         except Exception as exc:  # noqa: BLE001 - surface the reason to the client
             self.send_response(400)
             self.send_header("Content-Type", "text/plain; charset=utf-8")

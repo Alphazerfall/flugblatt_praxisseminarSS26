@@ -5,19 +5,21 @@ PaddleOCR, GLM-OCR, ...) against the source PDF: page on the left with
 detected boxes overlaid, extracted content on the right, numbered and synced
 by hover/click — same idea as Datalab's own playground UI.
 
-The **Compare mode** dropdown switches between four ways of comparing the
+The **Vergleichsmodus** dropdown switches between four ways of comparing the
 current document's models, all sharing the same document/page navigation:
-- **Single** — one model, the layout described above.
-- **Side-by-side** — two full model rows (PDF+boxes | content) stacked, Model
+- **Einzeln** — one model, the layout described above.
+- **Nebeneinander** — two full model rows (PDF+boxes | content) stacked, Model
   A on top and Model B below (each row labelled so it's clear which is
   which), with a draggable divider between the two rows' heights, so
   misaligned/missed regions are visible at a glance without flipping the
   dropdown back and forth.
-- **Word diff** — model A's PDF+boxes on the left; on the right, a word-level
+- **Wort-Diff** — model A's PDF+boxes on the left; on the right, a word-level
   diff of the two models' extracted text for the current page, flattened to
-  one plain-text blob (LCS-based, `diff.js`), red/struck-through for text
-  only in A, green for text only in B, unstyled where they agree.
-- **Structured diff** — the same word-level diff, but keeping model A's
+  one plain-text blob (LCS-based, `diff.js`), red for text only in A, green
+  for text only in B, unstyled where they agree. Both sides are tinted rather
+  than struck through — a line through the characters is exactly what you're
+  trying to read when comparing a transcription against the OCR.
+- **Struktur-Diff** — the same word-level diff, but keeping model A's
   block structure instead of flattening the page: bbox overlay, per-block
   type tags and numbering all stay, hover/click-synced between the page and
   the content list exactly like Single/Side-by-side. Blocks are aligned
@@ -29,7 +31,7 @@ current document's models, all sharing the same document/page navigation:
   segmenting the page similarly — if one merges several paragraphs a
   finer-grained model keeps separate, expect more block-level insert/delete
   noise instead of clean word-level diffs within a shared block.
-- **Correct (gold standard)** — an editing mode, not a comparison one: locks to
+- **Korrigieren (Goldstandard)** — an editing mode, not a comparison one: locks to
   the Datalab output and turns the content pane into editable per-block
   textareas for post-editing Datalab's text into a gold standard. See "Correct
   mode" below.
@@ -40,7 +42,7 @@ API (JSON)" instead of the raw output folder name "jsonDatalab") — see
 used for matching and deep-link URLs, so links stay stable even if a label
 changes.
 
-The **Light mode** checkbox toggles the theme; the choice is remembered
+The **Heller Modus** checkbox toggles the theme; the choice is remembered
 (`localStorage`) and otherwise defaults to the OS's `prefers-color-scheme`.
 Applied via a `data-theme` attribute on `<html>` — see the inline `<script>`
 at the top of `index.html` (sets it synchronously, before first paint, so
@@ -63,22 +65,35 @@ folder on disk a given entry came from.
 ## Correct mode (gold standard)
 
 Correct mode produces the gold transcription we measure Datalab's CER against
-(see [../pipelines/03_eval/](../pipelines/03_eval/)). Pick **Correct (gold
-standard)** in Compare mode and type your initials in the **Annotator** box —
-next to it, a counter shows how many of that annotator's pages are complete
-for the current document (`GET /api/annotator-progress`, server.py).
+(see [../pipelines/03_eval/](../pipelines/03_eval/)). Pick **Korrigieren
+(Goldstandard)** in **Vergleichsmodus** and type your initials in the
+**Annotator** box — next to it, a counter shows how many of that annotator's
+pages are complete for the current document (`GET /api/annotator-progress`,
+server.py). If more than one annotator has saved the *current* page, the
+sidebar's **Annotatoren:** row (always visible, not behind a click) lists
+them as clickable chips — a filled dot marks a complete copy, the current one
+is highlighted — so switching to someone else's version of this page is one
+click instead of retyping their initials from memory
+(`GET /api/page-annotators`, server.py).
+
+The interface itself is German (the annotators are); code, comments and this
+README stay English, so UI labels appear here in German and everything around
+them in English.
 
 - The middle pane becomes one auto-sized `textarea` per Datalab block, always
   starting **empty** — the annotator transcribes each block from the scan
   without being anchored by the OCR text. Every control for a block lives
   right on it, nothing requires a trip to the sidebar: in the header line, its
-  type, a 3-state toggle, an **Illegible** button, and (pushed to the right)
-  an **Insert OCR text** button that accepts the OCR text as-is with one
+  type as a colour-coded badge (same per-type colour as the block's number
+  chip and its box on the scan — the type is what the Classification review
+  judges, so it has to be readable without hunting), a 3-state toggle, an
+  **Unleserlich** button, and (pushed to the right)
+  an **OCR-Text einfügen** button that accepts the OCR text as-is with one
   click instead of retyping something that's already correct — or, on
-  annotator-added blocks (which have no OCR text), a **✕ Remove block**
-  button in that same spot instead. Below the text, a **+ Add note** button
+  annotator-added blocks (which have no OCR text), a **✕ Block entfernen**
+  button in that same spot instead. Below the text, a **+ Notiz hinzufügen** button
   reveals a small text field for anything about that specific block (✕
-  removes it again). The Page section's **Insert all OCR text** does the same
+  removes it again). The Seite section's **OCR-Text überall einfügen** does the same
   as the per-block button for every block on the page at once (overwrites
   whatever's already there).
 - Focusing a block highlights its box, scrolls the scan to it, and marks it
@@ -86,70 +101,94 @@ for the current document (`GET /api/annotator-progress`, server.py).
   (see below), scrolled to the top of the list (the block list has extra
   scroll room below the last item so even it can reach the top). Only one
   block is ever current at a time. `Tab`/`Shift+Tab` jump straight from one
-  block's main field to the next's — the toggle/Illegible/Insert/Note
+  block's main field to the next's — the toggle/Unleserlich/Einfügen/Notiz
   buttons are click-only, skipped in the tab order, so they don't get in the way.
 - Only the selected block's box is drawn on the scan by default — with ~20
   boxes on a page, showing all of them makes the scan hard to read while
   transcribing; every box stays clickable, just visually hidden until it's
-  the active one (or hovered, on the scan itself). **Show all boxes** (in the
-  Page section's Layout group) overrides this to audit the whole layout at once.
+  the active one (or hovered, on the scan itself). **Alle Boxen anzeigen** (in the
+  Seite section's Layout group) overrides this to audit the whole layout at once.
 - **Block state** — a colored left border on the block, matching its inline
   3-state toggle:
-  - **Editing** (blue) — never confirmed since it was last empty. No diff
+  - **In Arbeit** (blue) — never confirmed since it was last empty. No diff
     shown yet, so a first blind read isn't spoiled by the answer.
-  - **Under review** (yellow) — confirmed at least once (blurred /
+  - **Zu prüfen** (yellow) — confirmed at least once (blurred /
     `Ctrl+Enter`) and has text. The OCR text is now shown beneath as a word
     diff and *stays* shown and live-updating as you keep refining the text —
     it does not hide again just because you're still typing. Reaching this
     state is always automatic, including when the text matches the OCR
     exactly: agreement is a good sign, not proof, so it's never enough on its
-    own to call something Reviewed.
-  - **Reviewed** (green) — only ever reached by the annotator's deliberate
+    own to call something Geprüft.
+  - **Geprüft** (green) — only ever reached by the annotator's deliberate
     choice, clicking that button on the toggle. Never set automatically.
   Clicking any of the three jumps straight to that state (e.g. mark something
-  Reviewed without editing it, or send a mistaken Reviewed back to Under
-  review) — it's a direct-set toggle, not a checkbox. Changing it updates the
+  Geprüft without editing it, or send a mistaken Geprüft back to Zu
+  prüfen) — it's a direct-set toggle, not a checkbox. Changing it updates the
   block in place; the list doesn't reshuffle or reset your scroll position.
-- **Illegible** (next to the toggle) — source can't be read; excludes the
+- **Unleserlich** (next to the toggle) — source can't be read; excludes the
   block from scoring.
-- A page is **complete** once every block is Reviewed or Illegible *and* the
-  annotator has explicitly ticked **I've checked the reading order and
-  layout** (Page section) — a forced, deliberate confirmation, not a default:
-  **Reading order is correct** and **Layout has errors** already default to
-  "looks fine" on their own, so leaving those untouched can't be told apart
-  from having actually checked them; this third checkbox always starts
-  unticked. The status line explains which half (blocks, layout, or both) is
-  still open. That's the same `complete` flag the eval script's `--all`
-  filter reads.
+- A page is **complete** once every block is Geprüft or Unleserlich *and*
+  **both** layout ratings have been set (see below). There's no separate
+  "I've checked the layout" confirmation: nothing is pre-rated, so having a
+  rating at all *is* the confirmation. The status line is one line with one
+  count per half — `offen: 12 Blöcke, Layout`, or `✓ Seite fertig`. That's
+  the same `complete` flag the eval script's `--all` filter reads.
 - **Picture/Figure blocks** aren't transcribed (their "OCR text" is just an AI
   image description): the block shows the image itself; its Note (same
-  **+ Add note** control as any other block) is its only annotation. Excluded
+  **+ Notiz hinzufügen** control as any other block) is its only annotation. Excluded
   from CER scoring. (`NON_TEXT_TYPES` in `app.js` and in
   `pipelines/03_eval/build_dinglehopper_inputs.py` — keep them in sync.)
-- **Page** (sidebar) combines page-level progress/options and whole-page
-  layout review in one box, split into labeled sub-groups so the bulk action
-  doesn't blend into the review checklist:
+- **Seite** (sidebar) combines page-level progress/options and whole-page
+  layout review, split into sub-groups by labelled horizontal rules (no nested
+  boxes — in a 240px column each inset frame and its padding cost usable width
+  the code checkboxes need) so the bulk action doesn't blend into the review
+  checklist:
   - Progress summary and the automatic completion status described above.
-  - **Blocks**: **Insert all OCR text**.
-  - **Layout**: **Show all boxes** — every block's box at once (with reading-
-    order numbers), instead of just the focused block's; this is the control
-    to turn on while actually checking reading order/layout, and it overrides
-    the topbar's own "Show boxes" (hidden in Correct mode — the sidebar one is
-    the only box toggle here, so it can't be left showing nothing with no
-    visible reason). **Reading order is correct** — checked by default;
-    uncheck if Datalab's block order doesn't match the page's actual reading
-    order. **Layout has errors** + a free-text field to describe them (missed
-    or spurious regions, wrong classification, etc.) — both saved into the
-    gold standard and surfaced in the eval script's `structural_report.csv`.
-    **I've checked the reading order and layout** — the completion gate
-    described above.
-  - **Notes**: a per-page **note** field for anything the other guidelines
+  - **Blöcke**: **OCR-Text überall einfügen**.
+  - **Layout**: two whole-page ratings (see below) plus, on the
+    topbar-adjacent **Ansicht** group, **Alle Boxen anzeigen** — every
+    block's box at once (with reading-order numbers), instead of just the
+    focused block's; this is the control to turn on while actually checking
+    reading order, and it overrides the topbar's own "Boxen anzeigen"
+    (hidden in Correct mode — the sidebar one is the only box toggle here,
+    so it can't be left showing nothing with no visible reason). Both
+    ratings are saved into the gold standard and surfaced in the eval
+    script's `structural_report.csv`.
+  - **Notizen**: a per-page **note** field for anything the other guidelines
     don't cover (stamps, marginalia, struck-through text).
-  Below the Page box: **Show diff vs raw OCR** (or `Alt+D`) shows a word diff
+  Below the Seite group: **Diff zum Roh-OCR anzeigen** (or `Alt+D`) shows a word diff
   of your correction against Datalab's raw text — per block (a strip under
   each changed block) and, toggled on, for the whole page (red = raw OCR
-  removed, green = correction added). Like **Show all boxes**, it's a viewing
+  removed, green = correction added). Like **Alle Boxen anzeigen**, it's a viewing
   preference only (remembered locally), not saved into the gold.
+
+### Layout review
+
+Two whole-page ratings, sharing one note field:
+
+| Rating | The question it asks |
+|---|---|
+| **Layout** | Are the regions right — boundaries where a unit of content starts and ends, correctly typed once bounded? Split, merged, missed, spurious or mislabelled blocks all land here. |
+| **Lesereihenfolge** | Do the blocks come out in the order a reader would follow? Turn on **Alle Boxen anzeigen** to see the numbering on the scan. |
+
+Each is rated **–** (unrated) / **Korrekt** / **Fehler** — same scale, same
+polarity, no default, so an untouched rating is never mistaken for a checked
+one. This mirrors the two-checkbox-plus-note structure ("Layout has errors" /
+"Reading order correct") the annotators who didn't use this tool actually
+used, kept separate because "the regions are wrong" and "the order is wrong"
+are worth reporting apart. A single combined rating and a fully separate
+third dimension (classification) were both tried in between — the combined
+version made the two indistinguishable again, the three-way split cost more
+time per page than the extra precision was worth.
+
+Rating **Fehler** on either shows the text field: write what is wrong and
+where (`Blöcke 3-4 gehören zusammen`). **It can't be left empty while either
+rating is Fehler** — an unexplained error is a finding nobody can act on, so
+the page stays incomplete until it says something. It only clears once
+*neither* rating is Fehler any more, since it may describe either one.
+
+In the saved JSON:
+`"layout": {"general": {"rating": …}, "reading_order": {"rating": …}, "note": …}`.
 
 **Transcription conventions.** The gold standard is plain text scored per
 character, so:
@@ -160,7 +199,7 @@ character, so:
   scoring both treat them that way (see below), so type one line.
 - Keyboard: `Tab`/`Shift+Tab` between blocks, `Ctrl+Enter` commit & next,
   `Alt+D` diff, `Alt+1`/`2`/`3` set the focused block's review state directly
-  to Editing/Under review/Reviewed.
+  to In Arbeit/Zu prüfen/Geprüft.
 
 Edits **autosave** (debounced) to
 `data/<dataset>/gold/annotations/<annotator>/page_<NNN>.json` via the server's
@@ -257,5 +296,11 @@ the page's width/height — only the ratio matters, not the unit).
 - `adapters.js` — per-model JSON → common shape normalization
 - `diff.js` — word-level LCS diff between two models' extracted page text,
   plus block-level alignment (`alignBlocks`) for the structured diff mode
-- `sanitize.js` — whitelist HTML sanitizer for rendering block content
+- `sanitize.js` — whitelist HTML sanitizer for rendering block content. It
+  drops *every* attribute except `img[src]`/`img[alt]`, `style` included, so
+  any presentation a model expressed inline has to be reasserted in
+  `style.css`. Datalab's lists are the case that matters: it emits
+  `<ol style="list-style-type: none">` because the document's own numbering
+  ("4.)", "II.", "---") is already in each item's text, and without that style
+  the browser adds a second set of markers. See the `.html-content ol/ul` rule.
 - `vendor/` — vendored pdf.js (ESM build)

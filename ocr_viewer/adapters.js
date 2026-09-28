@@ -319,7 +319,11 @@ function isGeminiBlocksJson(data) {
     data &&
     typeof data === "object" &&
     Array.isArray(data.pages) &&
-    data.pages.every((p) => p && Array.isArray(p.blocks) && p.dimensions)
+    data.pages.every((p) => p && Array.isArray(p.blocks) && p.dimensions) &&
+    // box_2d (not GLM's bbox_2d, see normalizeGlmBlocks) - the two shapes are
+    // otherwise structurally identical but use incompatible axis orders, so
+    // they must never both match the same JSON.
+    data.pages.every((p) => p.blocks.every((b) => "box_2d" in b))
   );
 }
 
@@ -341,6 +345,87 @@ function normalizeGeminiBlocks(json) {
         type: GEMINI_BLOCK_TYPE_MAP[b.type] || b.type || "Unknown",
         bbox: [(xmin / 1000) * width, (ymin / 1000) * height, (xmax / 1000) * width, (ymax / 1000) * height],
         html: geminiBlockHtml(b),
+      };
+    });
+    pages[p.page] = { width, height, blocks };
+  }
+  return { pages };
+}
+
+// ---------- GLM-OCR, glm_convert.py (jsonGLM/test_set.json: { model, pages:
+// [{ page, dimensions: {width,height}, blocks: [{ type, bbox_2d, content }] }] }) ----------
+// glm_convert.py drives the glmocr SDK's self-hosted pipeline (GLM-OCR model
+// + local PP-DocLayout-V3 layout detection) instead of prompting the raw
+// model for markdown - real per-page boxes. `type` is GLM's own fine-grained
+// label vocabulary (doc_title, paragraph_title, footer, table, ...), and
+// `bbox_2d` is native GLM/PP-DocLayout-V3 convention - [x1, y1, x2, y2],
+// normalized independently per axis to 0-1000 regardless of the page's
+// actual pixel size, so `dimensions` is always a fixed 1000x1000 (see
+// glm_convert.py) and this rescales the same way normalizeGeminiBlocks does.
+// Uses the `bbox_2d` key (not Gemini's `box_2d`) specifically so the two
+// adapters can never both match the same JSON - the axis order differs
+// ([x1,y1,x2,y2] here vs. Gemini's [ymin,xmin,ymax,xmax]), so a mismatch
+// would silently swap axes rather than fail loudly.
+const GLM_TYPE_MAP = {
+  doc_title: "SectionHeader",
+  paragraph_title: "SectionHeader",
+  figure_title: "Caption",
+  header: "PageHeader",
+  header_image: "PageHeader",
+  footer: "PageFooter",
+  footer_image: "PageFooter",
+  number: "PageFooter",
+  footnote: "Footnote",
+  vision_footnote: "Footnote",
+  reference: "Footnote",
+  reference_content: "Footnote",
+  image: "Picture",
+  chart: "Picture",
+  table: "Table",
+  display_formula: "Equation",
+  inline_formula: "Equation",
+  formula_number: "Equation",
+  text: "Text",
+  abstract: "Text",
+  algorithm: "Text",
+  content: "Text",
+  vertical_text: "Text",
+  seal: "Text",
+};
+
+function isGlmBlocksJson(data) {
+  return (
+    data &&
+    typeof data === "object" &&
+    Array.isArray(data.pages) &&
+    data.pages.every((p) => p && Array.isArray(p.blocks) && p.dimensions) &&
+    data.pages.every((p) => p.blocks.every((b) => "bbox_2d" in b))
+  );
+}
+
+function glmBlockHtml(b) {
+  if (b.type === "table") {
+    const content = b.content || "";
+    if (content.trim().startsWith("<table")) return content;
+    return mistralTableToHtml(content) || markdownToHtml(content);
+  }
+  if (b.type === "image" || b.type === "chart") return "";
+  return markdownToHtml(b.content || "");
+}
+
+function normalizeGlmBlocks(json) {
+  const pages = [];
+  for (const p of json.pages || []) {
+    const width = p.dimensions?.width || 1000;
+    const height = p.dimensions?.height || 1000;
+    const blocks = (p.blocks || []).map((b, i) => {
+      const [x1, y1, x2, y2] = b.bbox_2d || [0, 0, 0, 0];
+      return {
+        id: `glm/${p.page}/${i}`,
+        order: i,
+        type: GLM_TYPE_MAP[b.type] || b.type || "Unknown",
+        bbox: [(x1 / 1000) * width, (y1 / 1000) * height, (x2 / 1000) * width, (y2 / 1000) * height],
+        html: glmBlockHtml(b),
       };
     });
     pages[p.page] = { width, height, blocks };
@@ -478,6 +563,7 @@ const ADAPTERS = [
   { name: "mistral", matches: isMistralJson, normalize: normalizeMistral },
   { name: "qwen", matches: isQwenJson, normalize: normalizeQwen },
   { name: "gemini", matches: isGeminiBlocksJson, normalize: normalizeGeminiBlocks },
+  { name: "glm", matches: isGlmBlocksJson, normalize: normalizeGlmBlocks },
   { name: "gemini", matches: isGeminiJson, normalize: normalizeGemini },
 ];
 
@@ -488,18 +574,42 @@ export function normalize(data, pdfPageSizes) {
   throw new Error("No adapter recognizes this JSON's structure.");
 }
 
+// Per-type colors for the bbox overlay, the block number chip and the type
+// badge. Chosen for *separation* first: the old set was a single band of
+// desaturated mid-tones, so Picture and Equation were near-identical purples
+// and Text and Footnote near-identical blue-greys — which matters now that
+// classification errors are a thing annotators are asked to spot.
+//
+// Hues are spread widest across the types that actually occur often in this
+// corpus (Text, SectionHeader, PageHeader, ListGroup, PageFooter); the rarer
+// ones fill the gaps. Lightness is kept in a narrow band so no type reads as
+// "more important" than another, and so the light theme's uniform darkening
+// (see .num / .type-tag in style.css) lands them all in a readable range.
+//
+// PageFooter, ComplexRegion and Figure used to fall through to DEFAULT_COLOR:
+// PageFooter alone is ~20 blocks in test_set, so a fifth of the page furniture
+// was rendering as "unknown type" grey.
+// Muted on purpose: these paint the scan overlay, the block-list dot and
+// (in Correct mode) sit right next to the rating toggle's "error" red
+// (#c1544b, style.css). SectionHeader was originally a coral close enough
+// to that red to misread as an error state — moved to a warmer terracotta
+// to stay out of its way. Kept below full saturation across the board so a
+// page with a dozen boxes doesn't look like a traffic-light test pattern.
 const PALETTE = {
-  Text: "#7a9cc2",
-  SectionHeader: "#c17b7b",
-  PageHeader: "#bd9868",
-  Picture: "#8d84b0",
-  Caption: "#72a396",
-  Table: "#b3a25a",
-  TableCell: "#b3a25a",
-  ListGroup: "#b088a0",
-  ListItem: "#b088a0",
-  Footnote: "#7fa0ac",
-  Equation: "#9884ab",
+  Text: "#6f93bd", // blue
+  SectionHeader: "#c98a5a", // terracotta
+  PageHeader: "#c9a15e", // amber
+  PageFooter: "#9bb06a", // olive-green
+  ListGroup: "#c088a8", // mauve
+  ListItem: "#c088a8",
+  Picture: "#9584b8", // violet
+  Figure: "#9584b8",
+  Table: "#4a9d92", // teal
+  TableCell: "#4a9d92",
+  Caption: "#6ba8bd", // cyan
+  Equation: "#8b8fbd", // periwinkle
+  Footnote: "#8b95a3", // slate — deliberately the quietest
+  ComplexRegion: "#ab8266", // brown
 };
 const DEFAULT_COLOR = "#9a9ba0";
 

@@ -11,6 +11,7 @@
   --confirmed-color: #e0453f;
   --confirm-green: #3fb37a;
   --current-color: #4a90e2; /* dedicated to the "currently viewed page" indicator, distinct from --accent */
+  --warn-amber: #d9a441;
 
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -258,6 +259,42 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--confirm-green);
   border-color: var(--confirm-green);
   color: #fff;
+}
+
+/* Read-only display of pipelines/04_metadata/extract_metadata_v2.py's LLM
+   output (title/issuers/date), matched to this box by exact page range.
+   Absent (removed from the DOM) when nothing was extracted for this range —
+   no manual edits round-trip from here, it's display-only. */
+.segment-extracted-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 4px;
+}
+
+/* Toggled via the "Metadaten anzeigen" checkbox, off by default. */
+body.metadata-hidden .segment-extracted-meta {
+  display: none;
+}
+
+.segment-extracted-meta strong {
+  color: var(--text);
+}
+
+/* Issuing orgs checked against docs/korpus/findmittel/organizations.draft.json
+   (see build_organizations.py) - amber flags a surface form that isn't in the
+   normdatei yet (same set eval_metadata.py writes to organizations.unaufgeloest.json),
+   so an editor can spot canonicalization gaps while reviewing right here. */
+.org-tag {
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.org-tag.org-unknown {
+  background: color-mix(in srgb, var(--warn-amber) 22%, var(--bg));
 }
 
 /* Responsive grid — as many ~110px-and-up thumbnails per row as fit, so the

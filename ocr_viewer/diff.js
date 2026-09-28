@@ -38,6 +38,33 @@ function tokenize(text) {
   return (text || "").split(/\s+/).filter(Boolean);
 }
 
+// Datalab flattens a list's own numbering ("1.", "II.", "-") into each <li>'s
+// text rather than expressing it as real list markup (see the ListGroup note
+// in style.css) — which is exactly what htmlToText/dinglehopper need (a
+// list read start-to-finish is just running text, and a real newline there
+// would cost CER for nothing), but it leaves the OCR read-back as one
+// unbroken paragraph, which is hard to scan against a 5-item list on the
+// scan. This finds, display-only, where each item *starts* — the block's
+// ocr_text/gt_text used for scoring are never touched.
+const LIST_MARKER_RE = /^(\d{1,3}[.)]|[ivxlcdm]{1,4}[.)]|[a-z][.)]|[-–—])$/i;
+
+// Returns each <li>'s leading marker token ("1.", "II.", …), in order, or
+// null if this isn't a marked list (fewer than two items, or any item
+// doesn't start with a recognizable marker) — callers should fall back to
+// the plain unbroken text rather than break some items and not others.
+export function listItemMarkers(html) {
+  const doc = new DOMParser().parseFromString(html || "", "text/html");
+  const items = doc.body.querySelectorAll("li");
+  if (items.length < 2) return null;
+  const markers = [];
+  for (const li of items) {
+    const first = (li.textContent || "").trim().split(/\s+/)[0] || "";
+    if (!LIST_MARKER_RE.test(first)) return null;
+    markers.push(first);
+  }
+  return markers;
+}
+
 // Standard LCS-based diff over the two token arrays. O(n*m) time and space,
 // fine for a page's worth of words; callers should guard against pathologically
 // large inputs (see MAX_DIFF_CELLS below).
@@ -75,7 +102,17 @@ function diffTokens(a, b) {
 const MAX_DIFF_CELLS = 4_000_000; // ~2000x2000 words; keeps the DP table under ~16MB and fast
 
 // Returns sanitized HTML: words wrapped in spans classed diff-eq/diff-ins/diff-del.
-export function wordDiffHtml(textA, textB) {
+// `breakMarkers` (optional, from listItemMarkers) inserts a <br> before each
+// marker token in order — display formatting on top of the same diff, not a
+// second alignment. Matching looks ahead in the marker list (not just the
+// very next one) so one marker OCR garbled badly enough to never appear as
+// its own token costs only its own break, not every one after it. Only
+// "eq"/"del" ops are checked (tokens that came from textA, the OCR reading
+// the markers were extracted from) — matching "ins" tokens too would let a
+// marker the annotator *typed* (but OCR misread) pull the break onto the
+// wrong side of that same edit, splitting e.g. a garbled "1"/"1." pair onto
+// two lines right at the top of the list.
+export function wordDiffHtml(textA, textB, breakMarkers) {
   const a = tokenize(textA);
   const b = tokenize(textB);
   if (a.length === 0 && b.length === 0) {
@@ -85,7 +122,21 @@ export function wordDiffHtml(textA, textB) {
     return `<div class="empty-msg">Page too large for a word diff (${a.length} vs ${b.length} words).</div>`;
   }
   const ops = diffTokens(a, b);
-  return ops.map((op) => `<span class="diff-${op.type}">${escapeHtml(op.value)}</span>`).join(" ");
+  const parts = [];
+  let markerIdx = 0;
+  for (const op of ops) {
+    if (breakMarkers && op.type !== "ins") {
+      for (let look = markerIdx; look < breakMarkers.length; look++) {
+        if (op.value === breakMarkers[look]) {
+          if (parts.length > 0) parts.push("<br>");
+          markerIdx = look + 1;
+          break;
+        }
+      }
+    }
+    parts.push(`<span class="diff-${op.type}">${escapeHtml(op.value)}</span>`);
+  }
+  return parts.join(" ");
 }
 
 // ---------- block-level alignment (structured diff) ----------

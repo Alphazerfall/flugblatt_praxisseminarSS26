@@ -61,3 +61,25 @@ def load_segmentation(pdf_path: Path) -> dict:
     if not out_path.is_file():
         raise FileNotFoundError(out_path)
     return json.loads(out_path.read_text(encoding="utf-8"))
+
+
+def latest_metadata_path_for(pdf_path: Path) -> Path | None:
+    """The most recently written v2 metadata sidecar for this PDF.
+
+    extract_metadata_v2.py tags each run by prompt+model
+    (`<stem>.metadata.v2.<tag>.json`), so several runs can exist side by
+    side for comparison (see compare_metadata.py/eval_metadata.py) - this
+    picks whichever was extracted last, skipping the `.bak-*` copies that
+    get created when a run overwrites an earlier one with the same tag.
+    """
+    candidates = [p for p in pdf_path.parent.glob(f"{pdf_path.stem}.metadata.v2.*.json")
+                  if ".bak-" not in p.name]
+    return max(candidates, key=lambda p: p.stat().st_mtime, default=None)
+
+
+def load_metadata(pdf_path: Path) -> dict:
+    """The latest v2 sidecar written by pipelines/04_metadata/extract_metadata_v2.py."""
+    out_path = latest_metadata_path_for(pdf_path)
+    if out_path is None:
+        raise FileNotFoundError(pdf_path)
+    return json.loads(out_path.read_text(encoding="utf-8"))

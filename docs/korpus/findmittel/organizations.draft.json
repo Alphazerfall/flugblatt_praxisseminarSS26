@@ -1,0 +1,2441 @@
+[
+  {
+    "org_id": "1_mai_komitee",
+    "name": "1. Mai-Komitee",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "1. Mai-Komitee"
+    ],
+    "jahre": [
+      "1971"
+    ],
+    "vz": [
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "a3w",
+    "name": "A3W",
+    "full_name": "Aktion 3. Welt",
+    "type": "",
+    "variants": [
+      "A3W. Aktion 3. Welt"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aar",
+    "name": "Aar",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aar"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "adf",
+    "name": "ADF",
+    "full_name": "Aktion Demokratische Fachschaften",
+    "type": "",
+    "variants": [
+      "ADF. Aktion Demokratische Fachschaften",
+      "Die Fachschaften"
+    ],
+    "jahre": [
+      "1970",
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      4,
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aiesec",
+    "name": "AIESEC",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "AIESEC"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ak",
+    "name": "AK",
+    "full_name": "Kritische Juristen",
+    "type": "",
+    "variants": [
+      "AK Kritische Juristen"
+    ],
+    "jahre": [
+      "1970",
+      "1971"
+    ],
+    "vz": [
+      4,
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ak_sozialkunde",
+    "name": "AK-Sozialkunde",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "AK-Sozialkunde"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "akkj",
+    "name": "AKKJ",
+    "full_name": "Arbeitskreis Kritische Juristen",
+    "type": "",
+    "variants": [
+      "AKKJ",
+      "AKKJ. Arbeitskreis Kritische Juristen"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ako",
+    "name": "AKO",
+    "full_name": "Aktionskomitee gegen die Einschüchterung der BHG-Opposition",
+    "type": "",
+    "variants": [
+      "AKO. Aktionskomitee gegen die Einschüchterung der BHG-Opposition"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktion_218",
+    "name": "Aktion § 218",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktion § 218"
+    ],
+    "jahre": [
+      "1971"
+    ],
+    "vz": [
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktion_demokratische_hochschule",
+    "name": "Aktion Demokratische Hochschule",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktion Demokratische Hochschule"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12,
+      14,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktion_ostern_70",
+    "name": "Aktion Ostern´70",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktion Ostern´70"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktion_roter_punkt",
+    "name": "Aktion Roter Punkt",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktion Roter Punkt"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionsausschu_sprach_lit",
+    "name": "Aktionsausschuß Sprach.-Lit.",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionsausschuß Sprach.-Lit."
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionskomitee_bayerisches_hochschulgesetz_fb_wiwi",
+    "name": "Aktionskomitee Bayerisches Hochschulgesetz (FB Wiwi)",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionskomitee Bayerisches Hochschulgesetz (FB Wiwi)",
+      "Die Fachbereichssprecher des FB Sprach- und Literaturwissenschaften",
+      "FB Wirtschaft",
+      "studentischer FB-Sprecher"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionskomitee_gegen_die_berufsverbote",
+    "name": "Aktionskomitee gegen die Berufsverbote",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionskomitee gegen die Berufsverbote"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionskomitee_gegen_die_erpressung_von_demokraten",
+    "name": "Aktionskomitee gegen die Erpressung von Demokraten",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionskomitee gegen die Erpressung von Demokraten"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionskomitee_roter_punkt",
+    "name": "Aktionskomitee Roter Punkt",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionskomitee Roter Punkt"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "aktionszentrum_unabh_ngiger_sch_ler",
+    "name": "Aktionszentrum unabhängiger Schüler",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Aktionszentrum unabhängiger Schüler"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "als",
+    "name": "ALS",
+    "full_name": "Aktionsgemeinschaft liberale Studenten",
+    "type": "",
+    "variants": [
+      "ALS. Aktionsgemeinschaft liberale Studenten",
+      "ALS. Aktionsgemeinschaft liberaler Studenten"
+    ],
+    "jahre": [
+      "1970",
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      4,
+      5,
+      6,
+      12,
+      13
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)",
+    "_review": "mehrere Langformen im Findmittel: Aktionsgemeinschaft liberale Studenten | Aktionsgemeinschaft liberaler Studenten - welche gilt, oder sind es zwei Einträge?"
+  },
+  {
+    "org_id": "anti_strau_komitee",
+    "name": "Anti-Strauß-Komitee",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Anti-Strauß-Komitee"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "anti_strauss_komitee",
+    "name": "Anti-Strauss-Komitee",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Anti-Strauss-Komitee"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "arbeitskreis_kritische_juristen",
+    "name": "Arbeitskreis Kritische Juristen",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Arbeitskreis Kritische Juristen"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "asd",
+    "name": "ASD",
+    "full_name": "Aktionskreis sozialer Dienst",
+    "type": "",
+    "variants": [
+      "ASD. Aktionskreis sozialer Dienst"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "assistentenschaft_der_universit_t_regensburg",
+    "name": "Assistentenschaft der Universität Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "AS TA der Universität Regensburg",
+      "Assistentenschaft der Universität Regensburg"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "asta",
+    "name": "AStA",
+    "full_name": "Allgemeiner Studentenausschuss",
+    "type": "",
+    "variants": [
+      "ASTA",
+      "ASTA Auslandsreferat",
+      "ASTA der Universität Regensburg",
+      "ASTA'KOLLEKTIV",
+      "ASTA-Kollektiv",
+      "ASTA-Kollektiv und Öffentlichkeitsreferat",
+      "AStA",
+      "AStA - Studentenschaft der Universität Regensburg",
+      "AStA - Öffentlichkeits - Referat",
+      "AStA PH Regensburg",
+      "AStA Uni",
+      "AStA Universität Regensburg",
+      "AStA der Universität Regensburg",
+      "AStA Öffentlichkeits-Referat",
+      "AStA Öffentlichkeitsreferat",
+      "AStA-Kollektiv",
+      "AStA-PH Regensburg",
+      "AStA-Sozialreferat",
+      "AStA. Allgemeiner Studentenausschuss",
+      "Asta",
+      "Der AStA",
+      "Der AStA der Universität Regensburg",
+      "Der Rektor und der AStA der Universität Regensburg",
+      "HSU LSD SDS SHB ASTA",
+      "Politik- und Kulturreferat des AStA",
+      "Politisches Referat des AStA der Universität Regensburg",
+      "alten AStA"
+    ],
+    "jahre": [
+      "1967",
+      "1968",
+      "1969",
+      "1970",
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      8,
+      13
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ausl_nderamt_stadt_regensburg",
+    "name": "Ausländeramt Stadt Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Ausländeramt Stadt Regensburg"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "basisgruppe_germanistik",
+    "name": "Basisgruppe Germanistik",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Basisgruppe Germanistik",
+      "Basisgruppe Germanistik der Universität Regensburg",
+      "Die Fachschaften, Basisgruppe Germanistik"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "basisgruppe_psychologie",
+    "name": "Basisgruppe Psychologie",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Basisgruppe Psychologie",
+      "Basisgruppe Psychologie an der Univ. Regensburg",
+      "Fachschaft Psychologie/Basisgruppe Psychologie",
+      "basisgruppe psychologie an der univ.regensburg"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "bayerische_w_hlerinitiative",
+    "name": "Bayerische Wählerinitiative",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Bayerische Wählerinitiative"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "begefogregetz",
+    "name": "BEGEFOGREGETZ",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "BEGEFOGREGETZ",
+      "Feststundenausschuß der Pressestelle der BEGEFOGREGETZ",
+      "Liste BEGEFOGREGETZ",
+      "Pressestelle der BEGEFOGREGETZ"
+    ],
+    "jahre": [
+      "1969",
+      "1970"
+    ],
+    "vz": [
+      3,
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "bllv",
+    "name": "BLLV",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "BLLV"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "bund_der_deutschen_katholischen_jugend",
+    "name": "Bund der Deutschen Katholischen Jugend",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Bund der Deutschen Katholischen Jugend",
+      "Bund der Deutschen Katholischen Jugend - Diözese Regensburg - Arbeitskreis PFFF"
+    ],
+    "jahre": [
+      "1968"
+    ],
+    "vz": [
+      2
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "cisnu",
+    "name": "CISNU",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "CISNU"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "corps_franconia",
+    "name": "Corps Franconia",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Corps Franconia"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "csu",
+    "name": "CSU",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "CSU",
+      "Friedrich August Freiherr von der Heydte und CSU - Fraktionsklüngel"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dab",
+    "name": "DAB",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "DAB"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dag",
+    "name": "DAG",
+    "full_name": "Deutsche Angestellten-Gewerkschaft",
+    "type": "",
+    "variants": [
+      "DAG. Deutsche Angestellten-Gewerkschaft"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "demokratisches_aktionsb_ndnis_ehemalige_fs",
+    "name": "Demokratisches Aktionsbündnis/Ehemalige FS",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Demokratisches Aktionsbündnis/Ehemalige FS"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "deutsche_jungdemokraten",
+    "name": "Deutsche Jungdemokraten",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Deutsche Jungdemokraten"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "df",
+    "name": "DF",
+    "full_name": "Demokratische Front",
+    "type": "",
+    "variants": [
+      "DF. Demokratische Front"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      11
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dfg",
+    "name": "DFG",
+    "full_name": "Deutsche Friedensgesellschaft",
+    "type": "",
+    "variants": [
+      "DFG. Deutsche Friedensgesellschaft"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dfu",
+    "name": "DFU",
+    "full_name": "Deutsche Friedens-Union",
+    "type": "",
+    "variants": [
+      "DFU. Deutsche Friedens-Union"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dk",
+    "name": "DK",
+    "full_name": "Dritte Kraft",
+    "type": "",
+    "variants": [
+      "DK. Dritte Kraft"
+    ],
+    "jahre": [
+      "1970",
+      "1971"
+    ],
+    "vz": [
+      4,
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dkp_hochschulgruppe_regensburg",
+    "name": "DKP-Hochschulgruppe Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "DKP-Hochschulgruppe Regensburg"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "dm",
+    "name": "DM",
+    "full_name": "Demokratische Mitte",
+    "type": "",
+    "variants": [
+      "DEMOKRATISCHE MITTE",
+      "DM. Demokratische Mitte",
+      "Demokratische Mitte",
+      "Demokratische Mitte - DM",
+      "Die Fraktion der DM"
+    ],
+    "jahre": [
+      "1967",
+      "1968",
+      "1969",
+      "1970",
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      12,
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "esg",
+    "name": "ESG",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "ESG",
+      "KHG + ESG"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "fachschaften",
+    "name": "Fachschaften",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Fachschaften"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      6,
+      9,
+      12,
+      14,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "fachschaften_fachbereiche",
+    "name": "Fachschaften/Fachbereiche",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Fachschaften/Fachbereiche"
+    ],
+    "jahre": [
+      "1968",
+      "1969",
+      "1970",
+      "1971"
+    ],
+    "vz": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "fkb",
+    "name": "FKB",
+    "full_name": "Forum Kritischer Bürger",
+    "type": "",
+    "variants": [
+      "FKB. Forum Kritischer Bürger"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "fr_hjahrskampagne_72",
+    "name": "Frühjahrskampagne´72",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Frühjahrskampagne´72"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "franconia",
+    "name": "Franconia",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Franconia"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "gew",
+    "name": "GEW",
+    "full_name": "Hochschulgruppe",
+    "type": "",
+    "variants": [
+      "GEW Hochschulgruppe",
+      "GEW. Gewerkschaft Erziehung und Wissenschaft"
+    ],
+    "jahre": [
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      5,
+      9,
+      13,
+      14,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)",
+    "_review": "mehrere Langformen im Findmittel: Gewerkschaft Erziehung und Wissenschaft | Hochschulgruppe - welche gilt, oder sind es zwei Einträge?"
+  },
+  {
+    "org_id": "gfa",
+    "name": "GfA",
+    "full_name": "Gruppe freier Assistenten",
+    "type": "",
+    "variants": [
+      "GfA. Gruppe freier Assistenten"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "gob",
+    "name": "GOB",
+    "full_name": "Gewerkschaftlich orientiertes Bündnis",
+    "type": "",
+    "variants": [
+      "GOB. Gewerkschaftlich orientiertes Bündnis"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "gus",
+    "name": "GUS",
+    "full_name": "Gruppe unabhängiger Studenten",
+    "type": "",
+    "variants": [
+      "GUS",
+      "GUS - Gruppe unabhängiger Studenten",
+      "GUS. Gruppe unabhängiger Studenten"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "hsu",
+    "name": "HSU",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "HSU"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "i_r_a_officials",
+    "name": "I.R.A. (Officials)",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "I.R.A. (Officials)"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "imafag",
+    "name": "IMAFAG",
+    "full_name": "Psychologie",
+    "type": "",
+    "variants": [
+      "Die Verwalter der Dienstgeschäfte wiss. Assistenten am Lehrstuhl für Psychologie der Universität Regensburg",
+      "Die studentischen Vertreter des Fachs Psychologie",
+      "Fachbereich Philosophie / Psychologie / Pädagogik",
+      "Fachschaft Psychologie",
+      "IMAFAG Psychologie",
+      "Rote Zelle Psychologie",
+      "Stud. Fachbereichsvertretung Philosophie-Psychologie-Pädagogik",
+      "Stud. Vertretung des Fachs Psychologie",
+      "Studentische Fachbereichsvertretung Philosophie-Psychologie-Pädagogik",
+      "Studentische Vertretung des Fachs Psychologie",
+      "kritische u. oppositionelle Studenten der Psychologie an der Universität Regensburg",
+      "stud. Fachbereichsvertretung philosophie-psychologie-pädagogik",
+      "stud. fachbereichsvertretung philosophie-psychologie-pädagogik",
+      "studentische Vertreter im Fachbereich Philosophie - Psychologie - Pädagogik",
+      "studentischen Vertreter des Fachs Psychologie"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "initiative_internationale_vietnam_solidarit_t",
+    "name": "Initiative Internationale Vietnam-Solidarität",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Initiative Internationale Vietnam-Solidarität"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "initiativkomitee_gegen_das_ausl_ndergesetz",
+    "name": "Initiativkomitee gegen das Ausländergesetz",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Initiativkomitee gegen das Ausländergesetz"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "jungdemokraten_die_junge_f_d_p",
+    "name": "Jungdemokraten - die junge F.D.P.",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Jungdemokraten - die junge F.D.P."
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "junge_nationaldemokraten",
+    "name": "Junge Nationaldemokraten",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Junge Nationaldemokraten"
+    ],
+    "jahre": [
+      "1971"
+    ],
+    "vz": [
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "juso",
+    "name": "JUSO",
+    "full_name": "Jungsozialisten",
+    "type": "",
+    "variants": [
+      "JUSO. Jungsozialisten"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "kanzler",
+    "name": "Kanzler",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Kanzler"
+    ],
+    "jahre": [
+      "1971"
+    ],
+    "vz": [
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "katholische_studentengemeinde_albertus_magnus",
+    "name": "Katholische Studentengemeinde Albertus Magnus",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Katholische Studentengemeinde Albertus Magnus"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "kdstv_rupertia",
+    "name": "KDStV Rupertia",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "KDStV Rupertia"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "khb",
+    "name": "KHB",
+    "full_name": "Kommunistischer Hochschulbund",
+    "type": "",
+    "variants": [
+      "KHB. Kommunistischer Hochschulbund"
+    ],
+    "jahre": [
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      5,
+      6,
+      12,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "khg",
+    "name": "KHG",
+    "full_name": "Katholische Hochschulgemeinde",
+    "type": "",
+    "variants": [
+      "KHG",
+      "KHG. Katholische Hochschulgemeinde"
+    ],
+    "jahre": [
+      "1969",
+      "1970",
+      "1971"
+    ],
+    "vz": [
+      3,
+      4,
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "komitee_kampf_der_inflation",
+    "name": "Komitee Kampf der Inflation",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Komitee Kampf der Inflation"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "kommissarischer_asta_der_erziehungswissenschaftlichen_fakult_t",
+    "name": "Kommissarischer AStA der Erziehungswissenschaftlichen Fakultät",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Kommissarischer AStA der Erziehungswissenschaftlichen Fakultät"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "kommunistische_arbeiterzeitung",
+    "name": "Kommunistische Arbeiterzeitung",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Kommunistische Arbeiterzeitung"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "konvent_der_assistentenvereinigung_regensburg",
+    "name": "Konvent der Assistentenvereinigung Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Assistentenvereinigung",
+      "Assistentenvereinigung Regensburg",
+      "Konvent",
+      "Konvent der Assistentenvereinigung Regensburg"
+    ],
+    "jahre": [
+      "1968"
+    ],
+    "vz": [
+      2
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ksg_esg",
+    "name": "KSG/ESG",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "KSG/ESG"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      6,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "kstv",
+    "name": "KStV",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "KStV"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "ksv",
+    "name": "KSV",
+    "full_name": "Kommunistischer Studentenverband",
+    "type": "",
+    "variants": [
+      "KSV. Kommunistischer Studentenverband"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lehrkr_fte_des_teilfaches_deutsche_sprachwissenschaft",
+    "name": "Lehrkräfte des Teilfaches Deutsche Sprachwissenschaft",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Lehrkräfte des Teilfaches Deutsche Sprachwissenschaft"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lfs_laf",
+    "name": "LFS/LAF",
+    "full_name": "Liste der Fachschaften der Linken AStA Fraktion",
+    "type": "",
+    "variants": [
+      "LFS/LAF. Liste der Fachschaften der Linken AStA Fraktion"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      8,
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "linke_asta_fraktion",
+    "name": "Linke (AStA-)Fraktion",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Die Linke",
+      "Linke (AStA-)Fraktion"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "linke_liste",
+    "name": "Linke Liste",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Linke Liste"
+    ],
+    "jahre": [
+      "1969",
+      "1970",
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      3,
+      4,
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lsd",
+    "name": "LSD",
+    "full_name": "Liberaler Studentenbund Deutschland",
+    "type": "",
+    "variants": [
+      "Die Hochschulgruppen Regensburg des LSD, SHB und SDS",
+      "LSD",
+      "LSD & SHB & SDS an der Universität Regensburg",
+      "LSD Regensburg",
+      "LSD, SHB und SDS Regensburg",
+      "LSD. Liberaler Studentenbund Deutschland",
+      "Liberaler Studentenbund (LSD)",
+      "Liberaler Studentenbund (LSD). Regensburg",
+      "Liberaler Studentenbund Deutschlands (LSD)",
+      "Liberaler Studentenbund Regensburg",
+      "SHB, LSD, SDS",
+      "Zentralkomitee des LSD"
+    ],
+    "jahre": [
+      "1968",
+      "1969"
+    ],
+    "vz": [
+      2,
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lssp",
+    "name": "LSSP",
+    "full_name": "Liste studentischer Sozialpolitik",
+    "type": "",
+    "variants": [
+      "LSSP. Liste studentischer Sozialpolitik"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lub",
+    "name": "LuB",
+    "full_name": "Liste unabhängiger Betriebswirte",
+    "type": "",
+    "variants": [
+      "LuB. Liste unabhängiger Betriebswirte"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "lust",
+    "name": "LUST",
+    "full_name": "Liste unabhängiger Studenten",
+    "type": "",
+    "variants": [
+      "L.U.ST. (Liste unabhängiger Studenten)",
+      "L.U.St. (Liste unabhängiger Studenten)",
+      "LISTE UNABHÄNGIGER STUDENTEN",
+      "LUST",
+      "LUST. Liste unabhängiger Studenten"
+    ],
+    "jahre": [
+      "1969",
+      "1970"
+    ],
+    "vz": [
+      3,
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "mafag",
+    "name": "MAFAG",
+    "full_name": "Psychologie. Marxistische Fachgruppe",
+    "type": "",
+    "variants": [
+      "MAFAG",
+      "MAFAG Geschichte",
+      "MAFAG Psychologie. Marxistische Fachgruppe"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      14,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "marxistische_fachgruppe_wirtschaftswissenschaften",
+    "name": "Marxistische Fachgruppe Wirtschaftswissenschaften",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Marxistische Fachgruppe Wirtschaftswissenschaften"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "mhg",
+    "name": "MHG",
+    "full_name": "Marxistische Hochschulgruppe",
+    "type": "",
+    "variants": [
+      "MHG. Marxistische Hochschulgruppe"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "msb",
+    "name": "MSB",
+    "full_name": "Spartakus",
+    "type": "",
+    "variants": [
+      "MSB Spartakus"
+    ],
+    "jahre": [
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      5,
+      6,
+      9,
+      12,
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "oga",
+    "name": "OGA",
+    "full_name": "Ostbayerischer Generalanzeiger",
+    "type": "",
+    "variants": [
+      "Die Redaktion des OGA",
+      "OGA. Ostbayerischer Generalanzeiger"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "rcds",
+    "name": "RCDS",
+    "full_name": "Ring Christlich-Demokratischer Studenten",
+    "type": "",
+    "variants": [
+      "RCDS",
+      "RCDS - Ring Christlich-Demokratischer Studenten",
+      "RCDS - Ring Christlich-Demokratischer-Studenten",
+      "RCDS Ring Christlich Demokratischer Studenten",
+      "RCDS- Uni-Regensburg e.V.",
+      "RCDS-Uni-Regensburg e.V.",
+      "RCDS. Ring Christlich-Demokratischer Studenten",
+      "Rcds e.V. Regensburg",
+      "Ring Christlich-Demokratischer Studenten (RCDS) e.V.",
+      "Ring Christlich-Demokratischer Studenten (RCDS) e.V., Regensburg",
+      "Ring Christlich-Demokratischer Studenten an der Universität Regensburg e.V.",
+      "Ring christlich-demokratischer Studenten an der Universität Regensburg e.V."
+    ],
+    "jahre": [
+      "1968",
+      "1969",
+      "1970",
+      "1971",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      2,
+      3,
+      4,
+      5,
+      7,
+      10,
+      13
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "rektor",
+    "name": "Rektor",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Der Rektor der Universität Regensburg",
+      "Der Rektor der Universität Regensburg / Allgemeiner Studentenausschuß der Universität Regensburg",
+      "Rektor",
+      "Rektor der Universität Regensburg"
+    ],
+    "jahre": [
+      "1969",
+      "1970",
+      "1971",
+      "1973"
+    ],
+    "vz": [
+      3,
+      4,
+      5,
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "rote_zelle_psychologie",
+    "name": "Rote Zelle Psychologie",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Rote Zelle Psychologie"
+    ],
+    "jahre": [
+      "1969",
+      "1970"
+    ],
+    "vz": [
+      3,
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "roter_schrittmacher",
+    "name": "Roter Schrittmacher",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Roter Schrittmacher"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "rupertia",
+    "name": "Rupertia",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Rupertia"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "rus",
+    "name": "RUS",
+    "full_name": "Ring unabhängiger Studenten",
+    "type": "",
+    "variants": [
+      "RUS. Ring unabhängiger Studenten"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sak",
+    "name": "SAK",
+    "full_name": "Sozialer Arbeitskreis",
+    "type": "",
+    "variants": [
+      "SAK. Sozialer Arbeitskreis"
+    ],
+    "jahre": [
+      "1970",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      4,
+      6,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sakib",
+    "name": "SAKIB",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SAKIB"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sap",
+    "name": "SAP",
+    "full_name": "Sozialistische Arbeiterpolitik",
+    "type": "",
+    "variants": [
+      "SAP. Sozialistische Arbeiterpolitik"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sdaj",
+    "name": "SDAJ",
+    "full_name": "Sozialistische Deutsche Arbeiterjugend",
+    "type": "",
+    "variants": [
+      "SDAJ. Sozialistische Deutsche Arbeiterjugend"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sds",
+    "name": "SDS",
+    "full_name": "Sozialistischer Deutscher Studentenbund",
+    "type": "",
+    "variants": [
+      "Projektgruppe \"Rettet die Professoren\" des SDS",
+      "SDS",
+      "SDS Regensburg",
+      "SDS-Bundesvorstand",
+      "SDS. Sozialistischer Deutscher Studentenbund",
+      "Sozialistischer Deutscher Studentenbund ( SDS ) Tübingen",
+      "Sozialistischer Deutscher Studentenbund (SDS) Tübingen"
+    ],
+    "jahre": [
+      "1968",
+      "1969"
+    ],
+    "vz": [
+      2,
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sfe_sfb_studenten_f_r_europa_studenten_f_r_bayern",
+    "name": "SfE/SfB Studenten für Europa/Studenten für Bayern",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SfE/SfB. Studenten für Europa/Studenten für Bayern"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "shb",
+    "name": "SHB",
+    "full_name": "Sozialistischer Hochschulbund",
+    "type": "",
+    "variants": [
+      "SHB",
+      "SHB. Sozialdemokratischer Hochschulbund",
+      "SHB. Sozialistischer Hochschulbund",
+      "Sozialdemokratischer Hochschulbund Regensburg"
+    ],
+    "jahre": [
+      "1968",
+      "1969",
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      2,
+      3,
+      6,
+      9,
+      12,
+      14,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)",
+    "_review": "mehrere Langformen im Findmittel: Sozialdemokratischer Hochschulbund | Sozialistischer Hochschulbund - welche gilt, oder sind es zwei Einträge?"
+  },
+  {
+    "org_id": "si_g_studentische_interessenvertretung_geschichte",
+    "name": "SI(G). Studentische Interessenvertretung (Geschichte)",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SI(G). Studentische Interessenvertretung (Geschichte)"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      12
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "sig",
+    "name": "SIG",
+    "full_name": "Studentische Interessenvertretung Geschichte",
+    "type": "",
+    "variants": [
+      "SIG. Studentische Interessenvertretung Geschichte"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "skunk",
+    "name": "SKUNK",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SKUNK"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "smd",
+    "name": "SMD",
+    "full_name": "Studentenmission in Deutschland",
+    "type": "",
+    "variants": [
+      "SMD. Studentenmission in Deutschland"
+    ],
+    "jahre": [
+      "1972",
+      "1973"
+    ],
+    "vz": [
+      9,
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "spd",
+    "name": "SPD",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SPD"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenparlament",
+    "name": "Studentenparlament",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenparlament"
+    ],
+    "jahre": [
+      "1971"
+    ],
+    "vz": [
+      5
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenschaft",
+    "name": "Studentenschaft",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenschaft",
+      "Studentenschaft Uni — PH — Poly-Technikum",
+      "Studentenschaft der Universität Regensburg"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      14
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenschaft_der_universit_t_regensburg",
+    "name": "Studentenschaft der Universität Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenschaft der Universität Regensburg"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenschaften_der_bayer_ingenieurschulen",
+    "name": "Studentenschaften der bayer. Ingenieurschulen",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenschaften der bayer. Ingenieurschulen"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenwerk",
+    "name": "Studentenwerk",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenwerk",
+      "Studentenwerk Regensburg",
+      "Studentenwerk bei der Universität Regensburg"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentenwerk_regensburg",
+    "name": "Studentenwerk Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentenwerk Regensburg"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "studentische_vertretung",
+    "name": "Studentische Vertretung",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Studentische Vertretung"
+    ],
+    "jahre": [
+      "1968",
+      "1969"
+    ],
+    "vz": [
+      2,
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "svi",
+    "name": "SVI",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "SVI"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "tv",
+    "name": "ÖTV",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "ÖTV"
+    ],
+    "jahre": [
+      "1971",
+      "1972"
+    ],
+    "vz": [
+      5,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "unabh_ngige_liberale_liste",
+    "name": "Unabhängige Liberale Liste",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "UNABHÄNGIGE LIBERALE LISTE",
+      "Unabhängige Liberale Liste"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "unabh_ngige_liberale_liste_im_fb_ppp_liste_3",
+    "name": "Unabhängige Liberale Liste im FB PPP (Liste 3)",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Unabhängige Liberale Liste im FB PPP (Liste 3)"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vds",
+    "name": "VDS",
+    "full_name": "Verband Deutscher Studentenschaften",
+    "type": "",
+    "variants": [
+      "VDS",
+      "VDS. Verband Deutscher Studentenschaften"
+    ],
+    "jahre": [
+      "1969",
+      "1972"
+    ],
+    "vz": [
+      3,
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vereinigung_der_wissenschaftlichen_mitarbeiter_der_ur",
+    "name": "Vereinigung der wissenschaftlichen Mitarbeiter der UR",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Vereinigung der wissenschaftlichen Mitarbeiter der UR",
+      "Vereinigung der wissenschaftlichen Mitarbeiter der Universität"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vereinigung_deutscher_studenten_markomannen",
+    "name": "Vereinigung Deutscher Studenten Markomannen",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Vereinigung Deutscher Studenten Markomannen"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vereinigung_wissenschaftlicher_mitarbeiter",
+    "name": "Vereinigung wissenschaftlicher Mitarbeiter",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Vereinigung wissenschaftlicher Mitarbeiter",
+      "Vereinigung wissenschaftlicher Mitarbeiter der Universität Regensburg",
+      "Vorstand der Vereinigung wissenschaftlicher Mitarbeiter der Universität Regensburg"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      9
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vhw",
+    "name": "VHW",
+    "full_name": "Verband Hochschule und Wissenschaft",
+    "type": "",
+    "variants": [
+      "VHW. Verband Hochschule und Wissenschaft"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vietnam_komitee",
+    "name": "Vietnam-Komitee",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Vietnam-Komitee"
+    ],
+    "jahre": [
+      "1973"
+    ],
+    "vz": [
+      15
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "vorstand_der_vereinigung_wissenschaftlicher_mitarbeiter_der_universit_t_regensburg",
+    "name": "Vorstand der Vereinigung wissenschaftlicher Mitarbeiter der Universität Regensburg",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Der Vorstand der Vereinigung wiss. Mitarbeiter der Universität Regensburg",
+      "Vorstand der Vereinigung wissenschaftlicher Mitarbeiter der Universität Regensburg"
+    ],
+    "jahre": [
+      "1969"
+    ],
+    "vz": [
+      3
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "w_hlerinitiative_sozial_liberale_koalition",
+    "name": "Wählerinitiative sozial-liberale Koalition",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "Wählerinitiative sozial-liberale Koalition"
+    ],
+    "jahre": [
+      "1972"
+    ],
+    "vz": [
+      6
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  },
+  {
+    "org_id": "zbw",
+    "name": "ZBW",
+    "full_name": "",
+    "type": "",
+    "variants": [
+      "ZBW"
+    ],
+    "jahre": [
+      "1970"
+    ],
+    "vz": [
+      4
+    ],
+    "gnd_id": "",
+    "notes": "aus Findmittel Rep. 118 (St_Darin)"
+  }
+]

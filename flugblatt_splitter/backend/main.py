@@ -10,6 +10,7 @@ would shadow every /api/* route.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -17,7 +18,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from . import pdf_service, segmentation
-from .config import DATA_ROOT, THUMBNAIL_DPI
+from .config import DATA_ROOT, ORGANIZATIONS_PATH, THUMBNAIL_DPI
 from .models import SaveSegmentationRequest
 
 app = FastAPI(title="Flugblatt Splitter")
@@ -80,6 +81,22 @@ def load_segmentation_endpoint(pdf: str):
         return segmentation.load_segmentation(p)
     except FileNotFoundError:
         raise HTTPException(404, "no saved segmentation for this pdf yet")
+
+
+@app.get("/api/metadata/load")
+def load_metadata_endpoint(pdf: str):
+    p = _resolve_pdf(pdf)
+    try:
+        return segmentation.load_metadata(p)
+    except FileNotFoundError:
+        raise HTTPException(404, "no extracted metadata for this pdf yet")
+
+
+@app.get("/api/organizations/load")
+def load_organizations_endpoint():
+    if not ORGANIZATIONS_PATH.is_file():
+        raise HTTPException(404, "no organizations normdatei found")
+    return json.loads(ORGANIZATIONS_PATH.read_text(encoding="utf-8"))
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"

@@ -45,11 +45,15 @@ body {
   flex-direction: column;
 }
 
+/* Kept to one compact row: the topbar is chrome, not content — every pixel it
+   takes is one the scan and the block list don't get. Hence the small
+   uppercase labels (same treatment as the sidebar headings), tight gaps, and
+   controls sized to their content rather than a fixed generous minimum. */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 10px 16px;
+  gap: 6px 14px;
+  padding: 5px 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
@@ -58,30 +62,113 @@ body {
 .field {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 12px;
 }
 
-.field label { color: var(--muted); }
+.field label {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
 
-/* "N/M complete" next to the Annotator field. */
-.annotator-progress { color: var(--muted); font-size: 12px; }
+/* Checkbox options ("Boxen anzeigen", "Heller Modus") aren't field names —
+   they were inheriting the same 10px uppercase micro-caps as "DOKUMENT" /
+   "MODELL A" above via the plain .field label rule, which made a clickable
+   option read like a section heading. Normal text at the same size as the
+   dropdowns beside it instead. */
+.check-field label {
+  color: var(--text);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
 
-select, button, input {
+/* "N/M fertig" next to the Annotator field. */
+.annotator-progress { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+/* textarea belongs in this list too — without it, every textarea in the app
+   (page note, block note, layout note, gt-input) fell back to the browser's
+   own native border/corner rendering, which on Windows/Chromium paints a
+   second rounded ring around the square UA border. appearance: none opts
+   textareas out of that native chrome so our border is the only one.
+   Checkboxes/radios are excluded: appearance: none strips their native
+   checkmark too, and since nothing here draws a replacement, they rendered
+   as blank rounded pills with no way to tell checked from unchecked — they
+   keep their native OS look instead. */
+select, button, input:not([type="checkbox"]):not([type="radio"]), textarea {
   background: var(--input-bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: 2px 6px;
+  font-size: 12px;
+  appearance: none;
 }
 
-select { min-width: 180px; }
+/* Enough for the longest model label without reserving that width for every
+   dropdown. The document select is no wider than the rest: its names are
+   longer, but a truncated name is still selectable and the full one shows in
+   the open list — not worth the permanent topbar width. */
+select {
+  min-width: 120px;
+  max-width: 190px;
+  /* appearance: none (above) drops the native dropdown arrow along with the
+     rest of the native chrome, leaving a <select> looking exactly like a
+     plain text field — nothing marked it as clickable/openable. A small
+     drawn chevron restores that affordance; background-image (not a
+     pseudo-element) because <select> is a replaced element and ::after
+     doesn't render on it consistently across browsers. Color is baked into
+     the SVG rather than read from --muted (a data: URI can't reference a
+     CSS custom property), so light mode gets its own darker chevron below. */
+  padding-right: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239a9ba0' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px 6px;
+}
+:root[data-theme="light"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7078' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+#annotator-input { width: 4.5em; }
 
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
 
 .page-nav span { color: var(--muted); }
+
+/* Was the &larr;/&rarr; text glyphs — those sit at whatever vertical position
+   the current font's arrow glyph happens to have (noticeably off-center in
+   Segoe UI), and that shifts with the OS font. A CSS-drawn triangle instead:
+   flexbox centers the empty ::before exactly, and a border-triangle is
+   symmetric by construction, so centering no longer depends on font metrics
+   at all. */
+.page-arrow {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-arrow::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid var(--text);
+}
+.page-arrow-next::before {
+  border-right: none;
+  border-left: 5px solid var(--text);
+}
 
 #page-input {
   width: 4em;
@@ -285,28 +372,54 @@ button:hover { border-color: var(--accent); }
   background: var(--active-tint);
 }
 
+/* In Correct mode, .active also fires from clicking/hovering a box on the
+   scan (setActive) — its only visible feedback here, since that click
+   doesn't focus a field and so never sets .current-block. It shouldn't use
+   the type-colored border+tint from the rule above (a second, differently
+   colored outline stacked on the review rail); the ring it needs instead is
+   set further down, alongside .current-block's, as part of the unified
+   review/ring box-shadow. */
+.correct-item.active {
+  border-color: transparent;
+  background: var(--hover-tint);
+}
+
 /* Structured diff (view: diff-struct) — a whole block present in only one
    model, tinted with the same red/green semantics as the inline word-diff
    spans (.diff-del/.diff-ins below) and the flat word-diff legend chips. */
 .content-item.diff-struct-del {
-  background: color-mix(in srgb, #c17b7b 12%, transparent);
-  border-color: color-mix(in srgb, #c17b7b 35%, transparent);
+  background: color-mix(in srgb, #ef6b6b 12%, transparent);
+  border-color: color-mix(in srgb, #ef6b6b 35%, transparent);
 }
 
 .content-item.diff-struct-ins {
-  background: color-mix(in srgb, #72a396 12%, transparent);
-  border-color: color-mix(in srgb, #72a396 35%, transparent);
+  background: color-mix(in srgb, #46c08d 12%, transparent);
+  border-color: color-mix(in srgb, #46c08d 35%, transparent);
 }
 
+/* Number and type sit in one head row (.item-head) at the top of .body, not
+   in their own flex column beside it — that put a gap between two things
+   that name the same block, and left every block's toggle row starting at a
+   different x-position depending on how long its type name was. */
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+/* Plain and colorless: which block this is is a position/count, not a
+   category, so it no longer borrows the type color (that already lives on
+   the dot in .type-tag right next to it — repeating it here just meant two
+   differently-colored outlines touching). */
 .content-item .num {
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  margin-top: 1px;
   border-radius: 3px;
   background: transparent;
-  border: 1px solid var(--box-color, #ff6b6b);
-  color: var(--box-color, #ff6b6b);
+  border: 1px solid var(--border);
+  color: var(--muted);
   font-size: 9px;
   display: flex;
   align-items: center;
@@ -314,22 +427,37 @@ button:hover { border-color: var(--accent); }
   font-weight: 600;
 }
 
-/* the per-type palette (adapters.js) was tuned to pop against a dark panel;
-   on a white one the same medium-saturation colors read too washed out for
-   text, so darken just where --box-color is used as text/border, not where
-   it's a swatch or a badge with its own solid background. */
-:root[data-theme="light"] .content-item .num {
-  filter: brightness(0.72) saturate(1.2);
-}
-
 .content-item .body { min-width: 0; flex: 1; }
 
+/* Colored text + border, transparent background — a step down from the old
+   solid-fill badge (which read as loud on a dense page) without going all
+   the way to a plain grey chip with a tiny dot (tried, but the color barely
+   registered and the fixed width needed to line up the toggle row left a
+   wide dead gap after short names like "Text"). The palette
+   (adapters.js) is muted enough now that colored text/border on its own
+   doesn't read as garish. Width hugs the label — every block's toggle row
+   starting at the same x wasn't worth that empty space. */
 .content-item .type-tag {
-  font-size: 9px;
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--muted);
-  margin-bottom: 1px;
+  letter-spacing: 0.04em;
+  color: var(--box-color, var(--muted));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--box-color, var(--muted)) 50%, transparent);
+  border-radius: 3px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0 5px;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+/* Tuned for the dark panel; on the light one the same medium-saturation
+   color reads too pale for text, so darken text+border together. */
+:root[data-theme="light"] .content-item .type-tag {
+  filter: brightness(0.72) saturate(1.2);
 }
 
 .content-item .html-content {
@@ -343,6 +471,28 @@ button:hover { border-color: var(--accent); }
 .content-item .html-content h2,
 .content-item .html-content h3 {
   margin: 0 0 2px 0;
+}
+
+/* Datalab writes its lists as `<ol style="list-style-type: none">` because the
+   document's own numbering ("4.)", "II.", "---") is already the first thing in
+   each item's text. sanitize.js strips every attribute (right call for
+   untrusted JSON — style included), so the browser fell back to its own
+   markers and every item came out numbered twice, with each ListGroup
+   restarting at 1. Reassert the intent here rather than letting style
+   attributes through. Flush left, too: the pane is read side by side with the
+   scan, where the text isn't indented either.
+   Display only — htmlToText reads textContent, so generated markers never
+   reached the OCR text or the gold standard. */
+.content-item .html-content ol,
+.content-item .html-content ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+/* Nested lists keep a small indent — there the nesting *is* the information. */
+.content-item .html-content li ol,
+.content-item .html-content li ul {
+  padding-left: 12px;
 }
 
 .content-item .html-content img {
@@ -366,7 +516,7 @@ button:hover { border-color: var(--accent); }
 .legend-details summary {
   cursor: pointer;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   user-select: none;
 }
 
@@ -420,45 +570,59 @@ button:hover { border-color: var(--accent); }
    flat word-diff pane. */
 .diff-eq { color: var(--text); }
 
+/* Both sides get a tinted background and a fully opaque, saturated colour:
+   the removed side used to be washed out twice over (a muted red at 0.75
+   opacity, strike-through in a 60%-transparent colour), which made single
+   changed characters — the common case when checking a transcription against
+   the OCR — genuinely hard to spot. No strike-through: colour and tint carry
+   the "removed" meaning on their own, and the line ran straight through the
+   characters you're trying to compare. */
 .diff-del {
-  color: #c17b7b;
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, #c17b7b 60%, transparent);
-  opacity: 0.75;
+  color: #ef6b6b;
+  background: color-mix(in srgb, #ef6b6b 20%, transparent);
+  border-radius: 2px;
 }
 
 .diff-ins {
-  color: #72a396;
-  background: color-mix(in srgb, #72a396 14%, transparent);
+  color: #46c08d;
+  background: color-mix(in srgb, #46c08d 22%, transparent);
   border-radius: 2px;
+  font-weight: 600;
 }
+
+/* The palette above is tuned for the dark panel; on the light one the same
+   colours read too pale against white, so deepen the text while leaving the
+   background tints (which are already subtle) alone. */
+:root[data-theme="light"] .diff-del { color: #c0342f; }
+:root[data-theme="light"] .diff-ins { color: #16794f; }
 
 /* ---------- correction / gold-standard mode ---------- */
 
 /* The third pane: a fixed-width session sidebar (annotator, progress, page
    note, add-block, shortcuts, autosave status). content-pane-a stays flex:1
    as the editable list; this sits to its right at a fixed width. */
+/* Groups are separated by horizontal rules, not nested boxes: in a 240px
+   column every inset border + its padding costs ~20px of usable width on both
+   sides, and the nesting bought nothing a divider line doesn't. Same reason
+   .layout-note has no left rail and .sidebar-box no frame. */
 .correct-sidebar {
   flex: 0 0 240px;
   background: var(--panel);
   border-left: 1px solid var(--border);
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   font-size: 12.5px;
 }
 
 .correct-section { display: flex; flex-direction: column; gap: 8px; }
+.correct-section + .correct-section { border-top: 1px solid var(--border); padding-top: 10px; }
 
-/* Tinted panel so status reads as its own group, not just more checkboxes. */
 .page-status-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  background: var(--hover-tint);
-  border-radius: 4px;
+  gap: 3px;
 }
 
 /* One count per line; dot color matches the review state (see updateCorrectSidebar). */
@@ -470,10 +634,42 @@ button:hover { border-color: var(--accent); }
 .progress-dot[data-review="done"] { background: #4caf7d; }
 .progress-dot[data-review="illegible"] { background: var(--muted); }
 
-/* Fixed 2-line height so a shorter/longer message never resizes the box. */
-.page-complete-status { font-size: 11.5px; font-weight: 600; line-height: 1.35; min-height: calc(2 * 1.35em); }
+/* One line by design (see updateCorrectSidebar): two counts, not a sentence
+   that wrapped to three lines. Fixed single-line height so switching between
+   "Blöcke ✓ · Layout ✓" and "✓ Seite fertig" never resizes the group.
+   padding-left matches the dot (6px) + gap (5px) that indents each count's
+   text above it, so this line's text starts under theirs instead of hanging
+   out to the left of the column it summarizes. */
+.page-complete-status {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  min-height: 1.35em;
+  padding-left: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .page-complete-status[data-complete="yes"] { color: #3a8f63; }
 .page-complete-status[data-complete="no"] { color: var(--muted); }
+
+/* Empty (no wrapper margin/gap wasted) whenever no one else has saved this
+   page — fetchPageAnnotators leaves it untouched in that case. */
+.page-annotators { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.page-annotators-label { font-size: 10.5px; color: var(--muted); }
+.page-annotator-chip {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.page-annotator-chip:hover { color: var(--text); border-color: var(--accent); }
+/* A filled dot rather than a second color: "complete" is a property of that
+   annotator's copy of the page, independent of "active" (whose copy you're
+   currently looking at) — two different signals, so they don't share a
+   color channel the way active/inactive already does via border+background. */
+.page-annotator-chip.complete::after { content: " \25CF"; font-size: 6px; vertical-align: middle; color: #4caf7d; }
+.page-annotator-chip.active { color: var(--text); border-color: var(--accent); background: var(--active-tint); font-weight: 600; }
 
 .correct-check { display: flex; align-items: center; gap: 6px; color: var(--text); }
 .correct-check input { flex: 0 0 auto; }
@@ -527,7 +723,18 @@ kbd {
 .correct-save[data-state="no-annotator"] { color: #c9a24b; }
 
 /* An editable block: number chip + body (type tag, state pill, textarea/image, diff). */
-.correct-item { cursor: default; align-items: stretch; margin-bottom: 10px; }
+/* A larger radius than the base .content-item's 3px, so the rail below has
+   room to actually curve (see its own comment) — position/overflow set up
+   for that rail: it's a plain absolutely-positioned rectangle, clipped to
+   this radius by overflow: hidden, rather than drawn with its own curve.
+   border: 0 (overriding .content-item's inherited 1px solid transparent)
+   because that 1px border shrinks the padding *box* the rail's `left: 0` is
+   positioned against by 1px relative to the border box the outer ring below
+   is drawn from — an invisible sliver, but a real one, that read as a gap
+   between the rail and the ring the moment both were visible at once
+   (hovering a reviewed block). Zero border, and both start from the same
+   edge. */
+.correct-item { cursor: default; align-items: stretch; margin-bottom: 10px; border: 0; border-radius: 5px; position: relative; overflow: hidden; }
 
 .correct-item .gt-input {
   width: 100%;
@@ -561,10 +768,14 @@ kbd {
 
 .block-header .type-tag { flex: 0 0 auto; margin-bottom: 0; }
 
+/* Same 20px height as .review-toggle.inline beside it — these used to differ
+   by their own 1-2px of vertical padding, which was just enough to make the
+   header row look unaligned rather than sitting on one baseline. */
 .import-ocr-btn {
   margin-left: auto;
+  height: 20px;
   font-size: 10px;
-  padding: 1px 7px;
+  padding: 0 7px;
   color: var(--muted);
 }
 .import-ocr-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
@@ -574,16 +785,18 @@ kbd {
    insert), so both use margin-left:auto. */
 .remove-block-btn {
   margin-left: auto;
+  height: 20px;
   font-size: 10px;
-  padding: 1px 7px;
+  padding: 0 7px;
   color: #c17b7b;
   border-color: #c17b7b;
 }
 .remove-block-btn:hover { color: #fff; background: #c17b7b; }
 
 .illegible-btn {
+  height: 20px;
   font-size: 10px;
-  padding: 1px 7px;
+  padding: 0 7px;
   color: var(--muted);
 }
 .illegible-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
@@ -593,13 +806,17 @@ kbd {
    has content (app.js). */
 .add-note-btn {
   margin-top: 4px;
+  height: 20px;
   font-size: 10px;
-  padding: 1px 7px;
+  padding: 0 7px;
   color: var(--muted);
 }
 .add-note-btn:hover { color: var(--text); border-color: var(--accent); }
 
-.block-note-field { display: flex; align-items: flex-start; gap: 4px; margin-top: 4px; }
+/* stretch, not flex-start: the ✕ button matched neither the textarea's height
+   nor its top edge once the textarea grew, leaving it floating next to a
+   taller field. Stretching makes it exactly as tall as the note it clears. */
+.block-note-field { display: flex; align-items: stretch; gap: 4px; margin-top: 4px; }
 .block-note-input {
   flex: 1;
   min-width: 0;
@@ -615,59 +832,115 @@ kbd {
 
 .remove-note-btn {
   flex: 0 0 auto;
+  align-self: stretch;
   font-size: 10px;
   padding: 1px 6px;
   color: var(--muted);
 }
 .remove-note-btn:hover { color: #c17b7b; border-color: #c17b7b; }
 
-/* Review-state coloring (text blocks only — set via item.dataset.review).
-   A left rail + faint tint, distinct enough to read at a glance without
-   covering the text. "Reviewed" (done) uses a different, more saturated
-   green than the diff strip's muted "matches" rail below, so the two
-   distinct signals — workflow state vs. content agreement — don't blur
-   together. Illegible (a separate, sticky flag) always wins, regardless of
-   the underlying review value — the combined attribute selector
-   out-specifies the single-attribute rules above it. */
-.correct-item[data-review="editing"] { border-left: 3px solid #6f8bbd; background: color-mix(in srgb, #6f8bbd 6%, transparent); }
-.correct-item[data-review="pending"] { border-left: 3px solid #d9b354; background: color-mix(in srgb, #d9b354 7%, transparent); }
-.correct-item[data-review="done"] { border-left: 3px solid #4caf7d; background: color-mix(in srgb, #4caf7d 7%, transparent); }
-.correct-item[data-review][data-status="illegible"] { border-left: 3px solid var(--muted); background: transparent; opacity: 0.75; }
+/* Review-state coloring (text blocks only — set via item.dataset.review): a
+   rail (::before) plus a faint tint, composed from custom properties instead
+   of one declaration per state. Two rail techniques were tried and both
+   mismatched the box's own curve: border-left mixed with border-radius
+   tapers each corner from the rail's width down to the other sides' width,
+   so the curve looked like it never quite reached the corner; an inset
+   box-shadow (offset sideways to fake a border) draws its rounded corners
+   *around the offset copy*, not the box's real corner, so its curve sat
+   visibly inset from the box's own. A plain rectangle, clipped by the box's
+   own overflow: hidden + border-radius (see .correct-item above), has no
+   curve of its own to mismatch — it's simply cut by the real one.
+     --review-color: the rail's color — transparent unless a [data-review]
+       rule below sets it.
+     --state-color: what the ring (non-text blocks only, below) uses —
+       accent by default. Text blocks (which always have a rail) show
+       selection by widening the rail instead of adding a ring: a ring is a
+       *second*, all-around outline drawn outside the border box, while the
+       rail sits inside it — even lined up edge-to-edge (see border: 0
+       above), one on the outer edge and one a few px in read as two
+       separate strokes with a gap between the two, not one thicker one. */
+.correct-item {
+  --review-color: transparent;
+  --state-color: var(--accent);
+  --rail-width: 3px;
+  --ring-width: 0px;
+  /* The selection ring (non-text blocks — see :not([data-review]) below) —
+     a separate outset box-shadow, unaffected by this element's own
+     overflow: hidden (that only clips the rail pseudo-element and other
+     descendants, not the box's own shadow), so it still glows outside the
+     rounded corner. */
+  box-shadow: 0 0 0 var(--ring-width) var(--state-color);
+}
+.correct-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--rail-width);
+  background: var(--review-color);
+}
+.correct-item[data-review="editing"] { --review-color: #6f8bbd; --state-color: #6f8bbd; background: color-mix(in srgb, #6f8bbd 6%, transparent); }
+.correct-item[data-review="pending"] { --review-color: #d9b354; --state-color: #d9b354; background: color-mix(in srgb, #d9b354 7%, transparent); }
+.correct-item[data-review="done"] { --review-color: #4caf7d; --state-color: #4caf7d; background: color-mix(in srgb, #4caf7d 7%, transparent); }
+/* Illegible (a separate, sticky flag) always wins, regardless of the
+   underlying review value — the combined attribute selector out-specifies
+   the single-attribute rules above it. */
+.correct-item[data-review][data-status="illegible"] { --review-color: var(--muted); --state-color: var(--muted); background: transparent; opacity: 0.75; }
 
-/* The currently selected block: a glow ring in the same color as the
-   review-state rail above, rather than a separate tint/color — box-shadow
-   instead of border so it doesn't touch the box model (no layout shift) and
-   doesn't fight with the left-border review coloring, which stays visible
-   underneath. Only one block ever has this class — cleared from any other
-   before being added (see syncOnFocus in app.js). */
-.correct-item.current-block[data-review="editing"] { box-shadow: 0 0 0 2px #6f8bbd; }
-.correct-item.current-block[data-review="pending"] { box-shadow: 0 0 0 2px #d9b354; }
-.correct-item.current-block[data-review="done"] { box-shadow: 0 0 0 2px #4caf7d; }
-.correct-item.current-block[data-review][data-status="illegible"] { box-shadow: 0 0 0 2px var(--muted); }
-/* Non-text (Picture/Figure) blocks never carry data-review — fall back to
-   the ordinary focus-ring color. */
-.correct-item.current-block:not([data-review]) { box-shadow: 0 0 0 2px var(--accent); }
-
-.gt-diff {
-  margin-top: 4px;
-  padding: 3px 6px;
-  font-size: 11.5px;
-  line-height: 1.4;
-  background: var(--hover-tint);
-  border-radius: 3px;
-  border-left: 2px solid var(--border);
+/* .active fires from hovering/clicking the matching box on the scan
+   (setActive); .current-block from focusing a field in this block
+   (syncOnFocus). Only one block ever carries .current-block at a time — see
+   syncOnFocus — but both can apply to the same block at once, which is fine:
+   both branches below just set the same variables regardless of how many of
+   the two classes are present. Text blocks (rail present) widen the rail;
+   non-text blocks (Picture/Figure, added — never carry [data-review], so
+   --review-color stays transparent and a wider rail would still be
+   invisible) get the ring instead, same as before. */
+.correct-item.active,
+.correct-item.current-block {
+  --rail-width: 4px;
+}
+.correct-item.active:not([data-review]),
+.correct-item.current-block:not([data-review]) {
+  --ring-width: 2px;
 }
 
-/* exact match: OCR text read back plainly, with a teal rail to signal
-   "agrees" — deliberately a different color from the "Reviewed" state above
-   (this is about the content, not the workflow status). */
-.gt-diff.matched {
-  border-left-color: #72a396;
+/* A read-back, not a field: no border/background box (the .gt-input above it
+   already reads as "editable" that way — a same-shaped box under it read as
+   a second input), just an "OCR" label and indented text. The rail this used
+   to carry (grey, or teal on a match) doubled up with the block's own
+   review-color rail on .correct-item's left edge; the diff spans inside
+   already show mismatches in color, so nothing was lost by dropping it.
+   Label and text are flex children (not an absolutely-positioned ::before)
+   so the label aligns with the text's actual line box instead of a guessed
+   top offset — a fixed `top` never quite matched once font metrics /
+   line-height came into it. */
+.gt-diff {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--muted);
 }
 
+.gt-diff-label {
+  flex: 0 0 auto;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.gt-diff-text { flex: 1; min-width: 0; }
+
 /* ---------- sidebar boxed sections ("Page") ---------- */
-.sidebar-box { border: 1px solid var(--border); border-radius: 5px; padding: 8px; gap: 6px; }
+/* No frame — the .correct-subheading rules inside it do the grouping. */
+.sidebar-box { gap: 6px; }
 
 /* 3-state manual toggle (Editing / Under review / Reviewed) — a segmented
    button group, not a checkbox, so the annotator can jump to any of the
@@ -693,16 +966,45 @@ kbd {
 .review-toggle button:disabled { opacity: 0.5; cursor: default; }
 
 /* Compact sizing for the inline (per-block, in the header row) toggle, so it
-   fits alongside the type tag, Illegible, and Insert-OCR-text on one line. */
-.review-toggle.inline { flex: 0 0 auto; }
-.review-toggle.inline button { flex: 0 0 auto; font-size: 10px; padding: 2px 6px; }
+   fits alongside the type tag, Illegible, and Insert-OCR-text on one line.
+   Fixed height (not just padding) so it lines up exactly with the plain
+   buttons beside it (Illegible, Insert OCR text, …) regardless of their own
+   padding — those differed by a px or two of vertical padding, which was
+   enough to visibly stagger the row. */
+.review-toggle.inline { flex: 0 0 auto; height: 20px; }
+.review-toggle.inline button { flex: 0 0 auto; height: 100%; font-size: 10px; padding: 0 6px; }
 
-#layout-error-note { min-height: 44px; }
+/* ---------- Layout review (two whole-page ratings + one shared note) ---------- */
 
-/* Gates page completion (computePageComplete) — bolded to stand out. */
-#layout-reviewed-field {
-  font-weight: 600;
-  border-left: 3px solid var(--accent);
-  padding-left: 6px;
+.layout-aspects { display: flex; flex-direction: column; gap: 6px; }
+.layout-aspect { display: flex; flex-direction: column; gap: 3px; }
+.layout-aspect-label { font-size: 11px; color: var(--muted); }
+
+/* Same segmented button as .review-toggle above, with its own colors: the
+   three values are "not checked yet" / fine / broken, not workflow states.
+   "unrated" stays deliberately colorless — it's the untouched starting value
+   and rating it at all is what gates page completion (computePageComplete),
+   so it must not read as an answer. Full width, three equal segments. */
+.rating-toggle { width: 100%; }
+.rating-toggle button { flex: 1 1 0; font-size: 10.5px; padding: 3px 4px; }
+.rating-toggle button.active[data-value="unrated"] { color: var(--text); background: var(--active-tint); }
+.rating-toggle button.active[data-value="ok"] { color: #fff; background: #4caf7d; }
+.rating-toggle button.active[data-value="error"] { color: #fff; background: #c1544b; }
+
+/* Always visible (not just once rated "error") — one field shared by both
+   aspects above, so it sits below both rather than under just one. */
+.layout-note {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.6em;
   margin-top: 2px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 2px 5px;
+  color: var(--text);
+  border-color: color-mix(in srgb, #c1544b 45%, var(--border));
 }
+.layout-note:focus { outline: none; border-color: var(--accent); }
+.layout-note:disabled { opacity: 0.6; }
+

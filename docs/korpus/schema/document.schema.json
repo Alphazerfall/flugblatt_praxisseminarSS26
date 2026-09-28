@@ -1,0 +1,464 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uni-regensburg.de/flugblattsammlung/schema/document-1.0.json",
+  "title": "Flugblatt (Dokument-Record)",
+  "description": "Ein Flugblatt der Regensburger Sammlung: eine Gruppierung zusammenhaengender Seiten eines Jahrgangs-PDFs plus Metadaten. Der Volltext liegt NICHT hier, sondern in den referenzierten Seiten-Records (page.schema.json).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "doc_id",
+    "doc_uid",
+    "source",
+    "title",
+    "date",
+    "issuers",
+    "segmentation",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "doc_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}_[0-9]{4}_[0-9]{4}$",
+      "description": "Lesbare, sortierbare ID: <volume_id>_<start_page, 4-stellig>. Kann sich bei einem Neuschnitt aendern."
+    },
+    "doc_uid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stabile Identitaet ueber Neuschnitte hinweg. Wird beim Rebuild per Seitenmengen-Ueberlappung (Jaccard >= 0.5) uebertragen."
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "default": [],
+      "description": "doc_uids frueherer Records, aus denen dieser durch einen Neuschnitt hervorging."
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "volume_id",
+        "source_pdf",
+        "collection_year",
+        "start_page",
+        "end_page",
+        "n_pages",
+        "page_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "volume_id": {
+          "type": "string",
+          "pattern": "^[0-9]{4}_[0-9]{4}$",
+          "examples": [
+            "0118_0002"
+          ]
+        },
+        "volume_label": {
+          "type": "string",
+          "examples": [
+            "Nr. 002 (1968)"
+          ]
+        },
+        "source_pdf": {
+          "type": "string",
+          "examples": [
+            "0118_0002.pdf"
+          ]
+        },
+        "collection_year": {
+          "type": "integer",
+          "minimum": 1960,
+          "maximum": 1990,
+          "description": "Jahr des Bandes laut Ordnername - immer bekannt, dient als Fallback fuer date."
+        },
+        "start_page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indiziert, wie in segments.json"
+        },
+        "end_page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "n_pages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]{4}_[0-9]{4}#p[0-9]{4}$"
+          }
+        }
+      }
+    },
+    "title": {
+      "type": "object",
+      "required": [
+        "text",
+        "type",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Anzeigeform. Bei type=supplied per Konvention in eckigen Klammern."
+        },
+        "verbatim": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Wortlaut inkl. Zeilenumbruechen wie im OCR-Text; null wenn type != original."
+        },
+        "type": {
+          "enum": [
+            "original",
+            "supplied",
+            "incipit"
+          ],
+          "description": "original = Ueberschrift des Blatts; supplied = redaktionell vergeben; incipit = erste ~10 Woerter als Notbehelf."
+        },
+        "source": {
+          "$ref": "#/$defs/fieldSource"
+        }
+      }
+    },
+    "series": {
+      "type": "object",
+      "description": "Reihe, in der das Blatt erschien (AStA-Info, SozPol Info, 'Informationen aus dem Fachbereich Wirtschaftswissenschaft'). Getrennt vom Herausgeber und vom Titel - das Findmittel des Archivs wirft alle drei in ein Feld, was beim Auswerten nicht mehr trennbar ist.",
+      "required": [
+        "name",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Reihentitel, geglaettet: 'AStA-Info', nicht 'AStA - Info + AStA - Info'."
+        },
+        "issue": {
+          "type": "string",
+          "description": "Zaehlung wie gedruckt: 'Nr. 5', 'Nr. 16, 17, 18', '2/1973'. Leer, wenn keine angegeben."
+        },
+        "source": {
+          "$ref": "#/$defs/fieldSource"
+        }
+      }
+    },
+    "date": {
+      "type": "object",
+      "required": [
+        "text",
+        "edtf",
+        "earliest",
+        "latest",
+        "precision",
+        "type",
+        "basis",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Datum genau wie gedruckt, leer wenn keines im Text steht."
+        },
+        "edtf": {
+          "type": "string",
+          "description": "EDTF / ISO 8601-2: 1968-07-23 | 1968-11 | 1968 | 1968-11-25/1968-11-27 | 1968-07~ | 1968-07-23?",
+          "examples": [
+            "1968-07-23",
+            "1968-11",
+            "1968-11-25/1968-11-27",
+            "1968"
+          ]
+        },
+        "earliest": {
+          "type": "string",
+          "format": "date",
+          "description": "Untere Grenze, aus edtf abgeleitet - macht Zeitfilter trivial."
+        },
+        "latest": {
+          "type": "string",
+          "format": "date",
+          "description": "Obere Grenze, aus edtf abgeleitet."
+        },
+        "precision": {
+          "enum": [
+            "day",
+            "month",
+            "year",
+            "unknown"
+          ]
+        },
+        "type": {
+          "enum": [
+            "issued",
+            "event",
+            "mentioned",
+            "undated"
+          ],
+          "description": "issued = Erscheinungsdatum; event = im Text angekuendigtes Ereignis (Blatt ist AELTER!); mentioned = sonstige Datumsnennung; undated = nur ueber den Band datiert."
+        },
+        "basis": {
+          "enum": [
+            "printed",
+            "content",
+            "volume",
+            "external"
+          ],
+          "description": "printed = auf dem Blatt gedruckt; content = aus dem Text erschlossen; volume = nur Jahrgang bekannt; external = externe Quelle."
+        },
+        "source": {
+          "$ref": "#/$defs/fieldSource"
+        }
+      }
+    },
+    "issuers": {
+      "type": "array",
+      "description": "Ausstellende Organisation(en). Array, weil Blaetter haeufig gemeinsam herausgegeben werden.",
+      "items": {
+        "type": "object",
+        "required": [
+          "surface",
+          "org_id",
+          "role",
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "surface": {
+            "type": "string",
+            "description": "Wortlaut wie im Blatt, inkl. Kopfleisten-Schreibweise."
+          },
+          "org_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Schluessel in organizations.json; null = noch nicht normalisiert (bewusst sichtbar, kein Datenverlust)."
+          },
+          "role": {
+            "enum": [
+              "issuer",
+              "signatory",
+              "mentioned"
+            ]
+          },
+          "source": {
+            "$ref": "#/$defs/fieldSource"
+          }
+        }
+      }
+    },
+    "language": {
+      "type": "string",
+      "default": "de",
+      "examples": [
+        "de"
+      ]
+    },
+    "doc_type": {
+      "enum": [
+        "flugblatt",
+        "offener_brief",
+        "einladung",
+        "broschuere",
+        "zeitschrift",
+        "protokoll",
+        "unklar"
+      ],
+      "default": "flugblatt"
+    },
+    "topics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Platzhalter fuer spaetere Topic-Model-Labels."
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 ueber den normalisierten Volltext. Cache-Key fuer die LLM-Extraktion und Aenderungsdetektor beim Rebuild."
+    },
+    "text_stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "n_chars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_words": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "segmentation": {
+      "type": "object",
+      "required": [
+        "status",
+        "method",
+        "flags"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "auto",
+            "flagged",
+            "reviewed",
+            "confirmed"
+          ],
+          "description": "auto = ungeprueft; flagged = Verdachtssignal vorhanden; reviewed = gesichtet; confirmed = im Splitter bestaetigt."
+        },
+        "method": {
+          "enum": [
+            "datalab_auto",
+            "splitter_manual",
+            "heuristic"
+          ]
+        },
+        "boundary_confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "continuation_start",
+              "masthead_inside",
+              "long_segment",
+              "issuer_switch",
+              "date_jump",
+              "no_metadata",
+              "auto_disagreement"
+            ]
+          },
+          "default": []
+        },
+        "reviewed_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "ocr",
+        "extractor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ocr": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "engine": {
+              "type": "string",
+              "examples": [
+                "datalab-chandra-2",
+                "mistral-ocr-4"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "examples": [
+                "accurate"
+              ]
+            },
+            "run": {
+              "type": "string"
+            }
+          }
+        },
+        "extractor": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "examples": [
+                "gemini-3.5-flash"
+              ]
+            },
+            "extracted_at": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        },
+        "verified_fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "title",
+              "date",
+              "issuers",
+              "doc_type"
+            ]
+          },
+          "default": [],
+          "description": "Felder, die ein Mensch geprueft hat - gesetzt durch corrections.jsonl beim Build."
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "default": ""
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "fieldSource": {
+      "enum": [
+        "llm",
+        "human",
+        "heuristic"
+      ],
+      "description": "Woher der Wert dieses Feldes stammt. Pro Feld, nicht pro Record - Titel kann geprueft sein, waehrend das Datum noch LLM-Schaetzung ist."
+    }
+  }
+}

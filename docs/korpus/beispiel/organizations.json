@@ -1,0 +1,83 @@
+[
+  {
+    "org_id": "lsd",
+    "name": "LSD",
+    "full_name": "Liberaler Studentenbund Deutschlands",
+    "type": "studentische_gruppe",
+    "spectrum": "liberal",
+    "variants": ["LSD", "lsd", "L.S.D.", "Liberaler Studentenbund", "Liberaler Studentenbund Deutschlands", "ls6"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": "Kopfleisten der Form 'LSD - LSD - LSD - ...'; die OCR liest gelegentlich 'ls6'. In Nr. 002 der mit Abstand haeufigste Herausgeber."
+  },
+  {
+    "org_id": "sds",
+    "name": "SDS",
+    "full_name": "Sozialistischer Deutscher Studentenbund",
+    "type": "studentische_gruppe",
+    "spectrum": "sozialistisch",
+    "variants": ["SDS", "sds", "Sozialistischer Deutscher Studentenbund"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": ""
+  },
+  {
+    "org_id": "shb",
+    "name": "SHB",
+    "full_name": "Sozialdemokratischer Hochschulbund",
+    "type": "studentische_gruppe",
+    "spectrum": "sozialdemokratisch",
+    "variants": ["SHB", "shb", "Sozialdemokratischer Hochschulbund"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": "Tritt in Nr. 002 auch in gemeinsamen Kopfleisten auf ('LSD - SHB - SDS - ...') - Beispiel dafuer, warum issuers ein Array ist."
+  },
+  {
+    "org_id": "rcds",
+    "name": "RCDS",
+    "full_name": "Ring Christlich-Demokratischer Studenten",
+    "type": "studentische_gruppe",
+    "spectrum": "christlich-konservativ",
+    "variants": ["RCDS", "rcds", "Ring Christlich-Demokratischer Studenten"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": ""
+  },
+  {
+    "org_id": "asta_ur",
+    "name": "AStA",
+    "full_name": "Allgemeiner Studentenausschuss der Universität Regensburg",
+    "type": "hochschulorgan",
+    "variants": ["AStA", "ASTA", "Asta", "AStA-Info", "Allgemeiner Studentenausschuß"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": "Herausgeber der mehrseitigen 'AStA-Info'-Hefte -> dort doc_type=zeitschrift statt flugblatt."
+  },
+  {
+    "org_id": "aktionskomitee_notstand",
+    "name": "Aktionskomitee Notstand",
+    "full_name": "Studentenausschuss im Aktionskomitee Notstand",
+    "type": "ad_hoc_komitee",
+    "variants": ["STUDENTENAUSSCHUSS IM AKTIONSKOMITEE NOTSTAND", "Aktionskomitee Notstand", "Aktionskomitee gegen die Notstandsgesetze"],
+    "active_from": "1968",
+    "active_to": "1968",
+    "gnd_id": "",
+    "notes": "Buendnis rund um die Notstandsgesetze, Mai 1968. Typischer Fall einer kurzlebigen Ad-hoc-Gruppe - Grund fuer den Typ 'ad_hoc_komitee'."
+  },
+  {
+    "org_id": "bdkj",
+    "name": "BDKJ",
+    "full_name": "Bund der Deutschen Katholischen Jugend",
+    "type": "kirchliche_gruppe",
+    "variants": ["BDKJ", "Bund der Deutschen Katholischen Jugend"],
+    "active_from": null,
+    "active_to": null,
+    "gnd_id": "",
+    "notes": ""
+  }
+]

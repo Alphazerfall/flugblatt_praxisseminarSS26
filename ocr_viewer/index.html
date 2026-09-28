@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8" />
-<title>OCR Model Comparison</title>
+<title>OCR-Modellvergleich</title>
 <script>
   // applied synchronously, before CSS paints, so there's no flash of the
   // wrong theme while app.js (a deferred module script) is still loading
@@ -17,47 +17,47 @@
 <body>
 <header class="topbar">
   <div class="field">
-    <label for="doc-select">Document</label>
+    <label for="doc-select">Dokument</label>
     <select id="doc-select"></select>
   </div>
   <div class="field">
-    <label for="model-select">Model A</label>
+    <label for="model-select">Modell A</label>
     <select id="model-select"></select>
   </div>
   <div class="field">
-    <label for="compare-mode">Compare mode</label>
+    <label for="compare-mode">Vergleichsmodus</label>
     <select id="compare-mode">
-      <option value="single">Single</option>
-      <option value="side">Side-by-side</option>
-      <option value="diff">Word diff</option>
-      <option value="diff-struct">Structured diff</option>
-      <option value="correct">Correct (gold standard)</option>
+      <option value="single">Einzeln</option>
+      <option value="side">Nebeneinander</option>
+      <option value="diff">Wort-Diff</option>
+      <option value="diff-struct">Struktur-Diff</option>
+      <option value="correct">Korrigieren (Goldstandard)</option>
     </select>
   </div>
   <div class="field" id="model-b-field" hidden>
-    <label for="model-select-b">Model B</label>
+    <label for="model-select-b">Modell B</label>
     <select id="model-select-b"></select>
   </div>
   <div class="field" id="annotator-field" hidden>
     <label for="annotator-input">Annotator</label>
-    <input id="annotator-input" type="text" placeholder="e.g. fw" size="8" />
+    <input id="annotator-input" type="text" placeholder="K&uuml;rzel" size="5" />
     <span id="annotator-progress" class="annotator-progress"></span>
   </div>
   <div class="field page-nav">
-    <label for="page-input">Page</label>
-    <button id="prev-page" type="button">&larr;</button>
+    <label for="page-input">Seite</label>
+    <button id="prev-page" type="button" class="page-arrow" aria-label="Vorherige Seite"></button>
     <input id="page-input" type="number" min="1" value="1" />
     <span id="page-total">/ -</span>
-    <button id="next-page" type="button">&rarr;</button>
+    <button id="next-page" type="button" class="page-arrow page-arrow-next" aria-label="N&auml;chste Seite"></button>
   </div>
-  <div class="field" id="toggle-boxes-field">
-    <label><input type="checkbox" id="toggle-boxes" checked /> Show boxes</label>
+  <div class="field check-field" id="toggle-boxes-field">
+    <label><input type="checkbox" id="toggle-boxes" checked /> Boxen anzeigen</label>
   </div>
-  <div class="field">
-    <label><input type="checkbox" id="theme-toggle" /> Light mode</label>
+  <div class="field check-field">
+    <label><input type="checkbox" id="theme-toggle" /> Heller Modus</label>
   </div>
   <details class="legend-details" id="legend-details">
-    <summary>Legend</summary>
+    <summary>Legende</summary>
     <div id="type-legend" class="legend"></div>
   </details>
   <div id="status" class="status"></div>
@@ -72,7 +72,7 @@
         <div id="overlay-a" class="overlay"></div>
       </div>
     </section>
-    <div class="pane-resizer" title="Drag to resize"></div>
+    <div class="pane-resizer" title="Zum Ändern der Größe ziehen"></div>
     <section class="pane content-pane" id="content-pane-a">
       <div id="content-list-a" class="content-list"></div>
     </section>
@@ -82,42 +82,55 @@
     </section>
     <section class="pane correct-sidebar" id="correct-sidebar" hidden>
       <div class="correct-section sidebar-box" id="page-options">
-        <div class="correct-heading">Page</div>
+        <div class="correct-heading">Seite</div>
         <div class="page-status-box">
           <div class="correct-progress" id="correct-progress">&ndash;</div>
           <div class="page-complete-status" id="page-complete-status"></div>
         </div>
-        <div class="correct-subheading">Blocks</div>
-        <button id="insert-all-ocr" type="button" title="Overwrites every block's text with its OCR text">Insert all OCR text</button>
+        <!-- Always visible (not tucked behind a click) — which annotators
+             already saved *this* page, built from GET /api/page-annotators
+             (server.py) and refreshed on every page change. Click a chip to
+             switch to that annotator instead of retyping initials in the
+             topbar blind. -->
+        <div class="page-annotators" id="page-annotators"></div>
+        <div class="correct-subheading">Bl&ouml;cke</div>
+        <button id="insert-all-ocr" type="button" title="&Uuml;berschreibt den Text jedes Blocks mit seinem OCR-Text">OCR-Text &uuml;berall einf&uuml;gen</button>
 
         <div class="correct-subheading">Layout</div>
-        <label class="correct-check"><input type="checkbox" id="show-all-boxes" /> Show all boxes</label>
-        <label class="correct-check"><input type="checkbox" id="reading-order-correct" checked /> Reading order is correct</label>
-        <label class="correct-check"><input type="checkbox" id="layout-has-errors" /> Layout has errors</label>
-        <textarea id="layout-error-note" rows="3" aria-label="Describe layout errors" placeholder="missed region, wrong order, etc."></textarea>
-        <label class="correct-check" id="layout-reviewed-field">
-          <input type="checkbox" id="layout-reviewed" /> I've checked the reading order and layout
-        </label>
+        <!-- Zwei Aspekte, ein gemeinsames Notizfeld darunter — spiegelt die
+             beiden Checkboxen ("Layout has errors" / "Reading order
+             correct") + ein Textfeld, mit denen die beiden anderen
+             Annotatoren au&szlig;erhalb dieses Tools gearbeitet haben. Aus
+             LAYOUT_ASPECTS gebaut (app.js), damit die Bezeichnungen an
+             genau einer Stelle stehen. Zum Pr&uuml;fen der Lesereihenfolge
+             "Alle Boxen anzeigen" einschalten (Nummerierung auf dem Scan). -->
+        <div id="layout-aspects" class="layout-aspects"></div>
+        <textarea id="layout-note" class="layout-note" rows="2" placeholder="was ist falsch, und wo? z. B. Bl&ouml;cke 3-4 geh&ouml;ren zusammen / Bl&ouml;cke 13-18 spaltenweise lesen"></textarea>
 
-        <div class="correct-subheading">Notes</div>
-        <textarea id="page-note" rows="4" aria-label="Page note" placeholder="stamps, marginalia, struck-through text&hellip;"></textarea>
+        <div class="correct-subheading">Notizen</div>
+        <textarea id="page-note" rows="4" aria-label="Seitennotiz" placeholder="Stempel, Marginalien, durchgestrichener Text&hellip;"></textarea>
       </div>
+      <!-- Both toggles are display-only (no annotation data), so they live in
+           one group separate from the Seite box above rather than one
+           tucked under Layout and the other in its own section. -->
       <div class="correct-section">
-        <label class="correct-check"><input type="checkbox" id="show-gold-diff" /> Show diff vs raw OCR</label>
+        <div class="correct-heading">Ansicht</div>
+        <label class="correct-check"><input type="checkbox" id="show-all-boxes" /> Alle Boxen anzeigen</label>
+        <label class="correct-check"><input type="checkbox" id="show-gold-diff" /> Diff zum Roh-OCR anzeigen</label>
       </div>
       <div class="correct-section correct-shortcuts">
-        <div class="correct-heading">Shortcuts</div>
+        <div class="correct-heading">Tastenk&uuml;rzel</div>
         <ul>
-          <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> &mdash; next / prev block</li>
-          <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> &mdash; commit &amp; next</li>
-          <li><kbd>Alt</kbd>+<kbd>D</kbd> &mdash; toggle diff vs raw</li>
-          <li><kbd>Alt</kbd>+<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> &mdash; Editing / Under review / Reviewed</li>
+          <li><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> &mdash; n&auml;chster / vorheriger Block</li>
+          <li><kbd>Strg</kbd>+<kbd>Enter</kbd> &mdash; &uuml;bernehmen &amp; weiter</li>
+          <li><kbd>Alt</kbd>+<kbd>D</kbd> &mdash; Diff zum Roh-OCR umschalten</li>
+          <li><kbd>Alt</kbd>+<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> &mdash; In Arbeit / Zu pr&uuml;fen / Gepr&uuml;ft</li>
         </ul>
       </div>
       <div class="correct-save" id="correct-save"></div>
     </section>
   </div>
-  <div class="row-resizer" id="row-resizer" title="Drag to resize" hidden></div>
+  <div class="row-resizer" id="row-resizer" title="Zum Ändern der Größe ziehen" hidden></div>
   <div class="compare-row" id="row-b" hidden>
     <span class="row-label" id="row-label-b"></span>
     <section class="pane pdf-pane">
@@ -126,7 +139,7 @@
         <div id="overlay-b" class="overlay"></div>
       </div>
     </section>
-    <div class="pane-resizer" title="Drag to resize"></div>
+    <div class="pane-resizer" title="Zum Ändern der Größe ziehen"></div>
     <section class="pane content-pane" id="content-pane-b">
       <div id="content-list-b" class="content-list"></div>
     </section>

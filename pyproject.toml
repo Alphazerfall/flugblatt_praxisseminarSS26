@@ -25,5 +25,14 @@ eval = [
     "dinglehopper",
 ]
 
+# Structured (layout-blocks + bboxes) output from a self-hosted GLM-OCR
+# server, via glm_convert.py. Pulls in torch/transformers to run
+# PP-DocLayout-V3 locally - kept optional since it's a much heavier install
+# than the other engines' plain API clients. Install with
+#   pip install -e ".[glmocr]"
+glmocr = [
+    "glmocr[selfhosted]",
+]
+
 [tool.setuptools]
 packages = []

@@ -1,7 +1,7 @@
 import * as pdfjsLib from "/ocr_viewer/vendor/pdf.min.mjs";
 import { normalize, normalizeMarkdown, normalizeTextPages, colorFor, legendEntries } from "/ocr_viewer/adapters.js";
 import { sanitizeHtml } from "/ocr_viewer/sanitize.js";
-import { pageText, wordDiffHtml, htmlToText, alignBlocks } from "/ocr_viewer/diff.js";
+import { pageText, wordDiffHtml, htmlToText, alignBlocks, listItemMarkers } from "/ocr_viewer/diff.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/ocr_viewer/vendor/pdf.worker.min.mjs";
 
@@ -38,13 +38,13 @@ const el = {
   correctSidebar: document.getElementById("correct-sidebar"),
   correctProgress: document.getElementById("correct-progress"),
   pageCompleteStatus: document.getElementById("page-complete-status"),
+  pageAnnotators: document.getElementById("page-annotators"),
   insertAllOcr: document.getElementById("insert-all-ocr"),
   showGoldDiff: document.getElementById("show-gold-diff"),
   showAllBoxes: document.getElementById("show-all-boxes"),
-  readingOrderCorrect: document.getElementById("reading-order-correct"),
-  layoutHasErrors: document.getElementById("layout-has-errors"),
-  layoutErrorNote: document.getElementById("layout-error-note"),
-  layoutReviewed: document.getElementById("layout-reviewed"),
+  layoutAspects: document.getElementById("layout-aspects"),
+  layoutToggles: {}, // key -> toggle div, filled once below (LAYOUT_ASPECTS)
+  layoutNote: document.getElementById("layout-note"),
   pageNote: document.getElementById("page-note"),
   correctSave: document.getElementById("correct-save"),
   compareMode: document.getElementById("compare-mode"),
@@ -95,6 +95,7 @@ const state = {
   renderToken: 0, // guards against races when switching pages/models fast
   // --- correction / gold-standard mode ---
   annotator: "", // whose gold this is; goes into the save path/filename
+  autoSyncedPageKey: null, // "<dataset>#<page>" already auto-jumped to a complete annotator (see syncPageAnnotators)
   annotation: null, // the current page's editable annotation JSON (source of truth in memory)
   focusedBlock: -1, // index of the block whose textarea has focus (for keyboard shortcuts)
   showGoldDiff: false, // whole-page word diff of raw OCR vs correction instead of the editable list
@@ -105,8 +106,8 @@ const state = {
 const ANNOTATOR_KEY = "ocr-annotator";
 const AUTOSAVE_DELAY = 800; // ms of idle after the last keystroke before POSTing
 const DATALAB_MODEL_NAME = "jsonDatalab"; // Correct mode is locked to this output
-const DIFF_RAW_COLOR = "#c17b7b"; // raw OCR (removed) — matches .diff-del
-const DIFF_GOLD_COLOR = "#72a396"; // correction (added) — matches .diff-ins
+const DIFF_RAW_COLOR = "#ef6b6b"; // raw OCR (removed) — matches .diff-del
+const DIFF_GOLD_COLOR = "#46c08d"; // correction (added) — matches .diff-ins
 let saveTimer = null;
 
 function setStatus(msg) {
@@ -229,7 +230,7 @@ buildTypeLegend();
 // rejection is silent — console-only — and the UI is left looking "empty"
 // with no clue why.
 window.addEventListener("unhandledrejection", (event) => {
-  setStatus(`Unexpected error: ${event.reason?.message || event.reason}`);
+  setStatus(`Unerwarteter Fehler: ${event.reason?.message || event.reason}`);
   console.error(event.reason);
 });
 
@@ -250,7 +251,7 @@ async function loadManifest() {
     for (const doc of docs) {
       const opt = document.createElement("option");
       opt.value = `${doc.dataset}/${doc.id}`;
-      opt.textContent = `${doc.id}${doc.models.length ? "" : "  (no OCR output)"}`;
+      opt.textContent = `${doc.id}${doc.models.length ? "" : "  (keine OCR-Ausgabe)"}`;
       group.appendChild(opt);
     }
     el.docSelect.appendChild(group);
@@ -265,7 +266,7 @@ function populateModelSelect(selectEl, models) {
   selectEl.innerHTML = "";
   if (models.length === 0) {
     const opt = document.createElement("option");
-    opt.textContent = "(no OCR output for this document)";
+    opt.textContent = "(keine OCR-Ausgabe für dieses Dokument)";
     selectEl.appendChild(opt);
     selectEl.disabled = true;
     return;
@@ -300,7 +301,7 @@ async function selectDocument(key, opts = {}) {
   populateModelSelect(el.modelSelect, doc.models);
   populateModelSelect(el.modelSelectB, doc.models);
 
-  setStatus(`Loading ${doc.id}.pdf ...`);
+  setStatus(`Lade ${doc.id}.pdf …`);
   state.pdf = null;
   state.numPages = 0;
   try {
@@ -309,7 +310,7 @@ async function selectDocument(key, opts = {}) {
     // retry after a beat is usually enough for that to have settled.
     state.pdf = await loadPdfWithRetry(doc.pdf_url);
   } catch (err) {
-    setStatus(`Failed to load ${doc.id}.pdf: ${err.message}`);
+    setStatus(`${doc.id}.pdf konnte nicht geladen werden: ${err.message}`);
     return;
   }
   state.numPages = state.pdf.numPages;
@@ -389,7 +390,7 @@ async function setSlotModel(slot, model) {
     s.baseUrl = "";
     return;
   }
-  setStatus(`Loading ${displayNameFor(model)} output ...`);
+  setStatus(`Lade Ausgabe von ${displayNameFor(model)} …`);
   try {
     s.data = await loadModelOutput(model);
     s.baseUrl = model.base_url;
@@ -397,7 +398,7 @@ async function setSlotModel(slot, model) {
   } catch (err) {
     s.data = null;
     s.baseUrl = "";
-    setStatus(`Failed to load/parse ${displayNameFor(model)} output: ${err.message}`);
+    setStatus(`Ausgabe von ${displayNameFor(model)} konnte nicht geladen/gelesen werden: ${err.message}`);
   }
 }
 
@@ -422,9 +423,12 @@ async function renderAll() {
     } else if (state.compareMode === "diff-struct") {
       renderStructuredDiffContent(panes.a, pageDataA, state.b.data, state.a.baseUrl, state.b.baseUrl);
     } else if (state.compareMode === "correct") {
+      const pageAnnotators = await syncPageAnnotators(); // may switch state.annotator before loading below
+      if (token !== state.renderToken) return;
       await ensureAnnotationForCurrentPage(pageDataA);
       if (token !== state.renderToken) return;
       renderCorrectMode(panes.a, pageDataA);
+      renderPageAnnotatorChips(pageAnnotators);
     } else {
       renderContentList(panes.a, pageDataA, state.a.baseUrl);
     }
@@ -433,7 +437,7 @@ async function renderAll() {
     // rewritten by an external pipeline at the exact moment we read it) —
     // report it instead of leaving the canvas in a half-drawn state with no
     // explanation.
-    setStatus(`Render failed: ${err.message}`);
+    setStatus(`Darstellung fehlgeschlagen: ${err.message}`);
     console.error(err);
     return;
   }
@@ -496,7 +500,7 @@ function renderOverlay(pane, pageData) {
   // transcribing, so only the selected block's box is shown by default (see
   // .boxes-solo in style.css) — everything else stays clickable/hoverable,
   // just visually hidden until it's the active one. The Layout section's
-  // "Show all boxes" override lets annotators see the whole layout at once
+  // The "Alle Boxen anzeigen" override lets annotators see the whole layout at once
   // to audit it for errors. Other compare modes always show every box, since
   // that's the point of comparing detections.
   pane.overlay.classList.toggle("boxes-solo", state.compareMode === "correct" && !state.showAllBoxes);
@@ -548,23 +552,27 @@ function renderContentList(pane, pageData, baseUrl) {
     const item = document.createElement("div");
     item.className = "content-item";
 
-    const num = document.createElement("div");
-    num.className = "num";
-    num.style.setProperty("--box-color", colorFor(block.type));
-    num.textContent = i + 1;
-
     const body = document.createElement("div");
     body.className = "body";
+
+    const head = document.createElement("div");
+    head.className = "item-head";
+    const num = document.createElement("div");
+    num.className = "num";
+    num.textContent = i + 1;
     const tag = document.createElement("div");
     tag.className = "type-tag";
+    tag.style.setProperty("--box-color", colorFor(block.type));
     tag.textContent = block.type;
+    head.appendChild(num);
+    head.appendChild(tag);
+
     const html = document.createElement("div");
     html.className = "html-content";
     html.innerHTML = sanitizeHtml(block.html, baseUrl);
 
-    body.appendChild(tag);
+    body.appendChild(head);
     body.appendChild(html);
-    item.appendChild(num);
     item.appendChild(body);
 
     item.addEventListener("mouseenter", () => setActive(pane, i));
@@ -593,8 +601,8 @@ function renderDiff() {
   const textB = pageText(state.b.data, pageIdx);
 
   el.diffLegend.innerHTML = "";
-  el.diffLegend.appendChild(diffChip("#c17b7b", `${displayNameFor(state.a.model) || "A"} only`));
-  el.diffLegend.appendChild(diffChip("#72a396", `${displayNameFor(state.b.model) || "B"} only`));
+  el.diffLegend.appendChild(diffChip(DIFF_RAW_COLOR, `nur ${displayNameFor(state.a.model) || "A"}`));
+  el.diffLegend.appendChild(diffChip(DIFF_GOLD_COLOR, `nur ${displayNameFor(state.b.model) || "B"}`));
 
   el.diffContent.innerHTML = wordDiffHtml(textA, textB);
 }
@@ -625,7 +633,7 @@ function renderStructuredDiffContent(pane, pageDataA, modelDataB, baseUrlA, base
   if (blocksA.length === 0 && blocksB.length === 0) {
     const msg = document.createElement("div");
     msg.className = "empty-msg";
-    msg.textContent = "No content detected on this page.";
+    msg.textContent = "Auf dieser Seite wurde kein Inhalt erkannt.";
     pane.contentList.appendChild(msg);
     return;
   }
@@ -637,23 +645,26 @@ function renderStructuredDiffContent(pane, pageDataA, modelDataB, baseUrlA, base
     const item = document.createElement("div");
     item.className = "content-item";
 
-    const num = document.createElement("div");
-    num.className = "num";
     const body = document.createElement("div");
     body.className = "body";
+    const head = document.createElement("div");
+    head.className = "item-head";
+    const num = document.createElement("div");
+    num.className = "num";
     const tag = document.createElement("div");
     tag.className = "type-tag";
+    head.appendChild(num);
+    head.appendChild(tag);
     const html = document.createElement("div");
     html.className = "html-content";
-    body.appendChild(tag);
+    body.appendChild(head);
     body.appendChild(html);
-    item.appendChild(num);
     item.appendChild(body);
 
     if (op.type === "match") {
       const blockA = blocksA[op.a];
-      num.style.setProperty("--box-color", colorFor(blockA.type));
       num.textContent = op.a + 1;
+      tag.style.setProperty("--box-color", colorFor(blockA.type));
       tag.textContent = blockA.type;
       html.innerHTML = wordDiffHtml(textsA[op.a], textsB[op.b]);
       item.addEventListener("mouseenter", () => setActive(pane, op.a));
@@ -662,8 +673,8 @@ function renderStructuredDiffContent(pane, pageDataA, modelDataB, baseUrlA, base
     } else if (op.type === "del") {
       const blockA = blocksA[op.a];
       item.classList.add("diff-struct-del");
-      num.style.setProperty("--box-color", colorFor(blockA.type));
       num.textContent = op.a + 1;
+      tag.style.setProperty("--box-color", colorFor(blockA.type));
       tag.textContent = blockA.type;
       html.innerHTML = sanitizeHtml(blockA.html, baseUrlA);
       item.addEventListener("mouseenter", () => setActive(pane, op.a));
@@ -674,8 +685,8 @@ function renderStructuredDiffContent(pane, pageDataA, modelDataB, baseUrlA, base
       // overlay for it to sync to.
       const blockB = blocksB[op.b];
       item.classList.add("diff-struct-ins");
-      num.style.setProperty("--box-color", colorFor(blockB.type));
       num.textContent = "+";
+      tag.style.setProperty("--box-color", colorFor(blockB.type));
       tag.textContent = blockB.type;
       html.innerHTML = sanitizeHtml(blockB.html, baseUrlB);
     }
@@ -685,7 +696,7 @@ function renderStructuredDiffContent(pane, pageDataA, modelDataB, baseUrlA, base
 }
 
 // ---------- correction / gold-standard mode ----------
-// A new "Correct" compare mode that turns the (Datalab-only) content pane into
+// A new "Korrigieren (Goldstandard)" compare mode that turns the (Datalab-only) pane into
 // an editable transcription surface, producing the gold standard we score CER
 // against. Each block is a textarea seeded from the OCR text (or, in blind
 // mode, empty); edits, per-block status/flags/review-state/notes, and a page
@@ -708,6 +719,55 @@ function datalabModel() {
 const NON_TEXT_TYPES = new Set(["Picture", "Figure"]);
 function isTextBlock(block) {
   return !NON_TEXT_TYPES.has(block.type);
+}
+
+// ---------- Layout review vocabulary (page level) ----------
+// Two independently rated aspects — general layout (segmentation +
+// classification) and reading order — sharing one free-text note, mirroring
+// what the two annotators who worked outside this tool actually used:
+// "Layout has errors" and "Reading order correct", two checkboxes and a note
+// field underneath. A single combined rating was tried first and made it
+// impossible to tell "the regions are wrong" from "the order is wrong"
+// apart when reporting — worth keeping separate; a *third*, fully separate
+// classification dimension (also tried) was the opposite problem, three
+// toggles and three notes costing more per page than the precision was
+// worth. Two is the balance that survived. Both share one note (v1's
+// layout_error_note already covered both flags in one field) rather than one
+// each — splitting it never actually happened in practice; annotators wrote
+// one sentence covering whichever was wrong.
+// Same scale, same polarity for both — "error" means the same thing in
+// both, and nothing is pre-set, so "unrated" is distinguishable from
+// "checked and found fine". That's what the old reading_order_correct /
+// layout_has_errors / layout_reviewed trio couldn't do: mixed polarities, a
+// default of "looks fine", and a fourth "I've checked" checkbox needed just
+// to tell "untouched" from "confirmed clean" apart.
+// Rating is stored/read back by the eval script — keep LAYOUT_SCHEMA here in
+// sync with pipelines/03_eval/build_dinglehopper_inputs.py.
+const LAYOUT_SCHEMA = 4;
+const LAYOUT_RATINGS = ["unrated", "error", "ok"];
+const LAYOUT_RATING_LABELS = { unrated: "–", ok: "Korrekt", error: "Fehler" };
+const LAYOUT_ASPECTS = [
+  { key: "general", label: "Layout" },
+  { key: "reading_order", label: "Lesereihenfolge" },
+];
+
+function emptyLayout() {
+  return { general: { rating: "unrated" }, reading_order: { rating: "unrated" }, note: "" };
+}
+
+function layoutNoteText(layout) {
+  return layout && typeof layout.note === "string" ? layout.note : "";
+}
+
+function layoutRatingsFromV1Flags(v1) {
+  const note = typeof v1.layout_error_note === "string" ? v1.layout_error_note.trim() : "";
+  const reviewed = v1.layout_reviewed === true;
+  // An error flag wins regardless of `reviewed`: it's a specific finding,
+  // and `reviewed` was only ever a completion marker, not information about
+  // correctness — a page can carry a real problem without that box ticked.
+  const general = v1.layout_has_errors === true ? "error" : reviewed ? "ok" : "unrated";
+  const readingOrder = v1.reading_order_correct === false ? "error" : reviewed ? "ok" : "unrated";
+  return { general, readingOrder, note };
 }
 
 // The bare <img> filename from a Picture block's html (which also carries an AI
@@ -737,20 +797,100 @@ async function fetchAnnotatorProgress() {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(await res.text());
     const { completed } = await res.json();
-    el.annotatorProgress.textContent = `${completed}/${state.numPages} complete`;
+    el.annotatorProgress.textContent = `${completed}/${state.numPages} fertig`;
   } catch {
     el.annotatorProgress.textContent = ""; // non-essential — fail quietly
   }
 }
 
+// Fetches which annotators already saved *this* page and, the first time
+// this particular page is landed on, jumps to the first one (in the order
+// the server returns — alphabetical by folder name) who marked it complete:
+// reviewing finished work beats staring at an empty/in-progress draft by
+// default. Must run — and be awaited — before ensureAnnotationForCurrentPage
+// so the switch (if any) takes effect before that page's annotation loads,
+// not after. "First time landed on" is tracked via state.autoSyncedPageKey
+// so a chip click that deliberately picks a *different* complete annotator
+// isn't immediately fought back to "first" by the next re-render of the same
+// page (toggling a checkbox, autosave, …) — only an actual page/doc change
+// re-triggers the jump.
+async function syncPageAnnotators() {
+  if (!state.doc) return [];
+  let annotators = [];
+  try {
+    const url = `/api/page-annotators?dataset=${encodeURIComponent(state.doc.dataset)}&page=${state.pageNum}`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(await res.text());
+    ({ annotators } = await res.json());
+  } catch {
+    return []; // non-essential — fail quietly, same as fetchAnnotatorProgress
+  }
+
+  const pageKey = `${state.doc.dataset}#${state.pageNum}`;
+  if (pageKey !== state.autoSyncedPageKey) {
+    state.autoSyncedPageKey = pageKey;
+    const firstComplete = annotators.find((a) => a.complete);
+    if (firstComplete && firstComplete.name !== state.annotator) {
+      flushSave();
+      state.annotator = firstComplete.name;
+      el.annotatorInput.value = firstComplete.name;
+      localStorage.setItem(ANNOTATOR_KEY, firstComplete.name);
+      state.annotation = null; // reload this page's gold under the new annotator
+      state.focusedBlock = -1;
+      fetchAnnotatorProgress();
+    }
+  }
+  return annotators;
+}
+
+// Always-visible chip row (not behind a click) in the sidebar — one click to
+// switch to a different annotator's copy of this page instead of retyping
+// their initials in the topbar from memory.
+function renderPageAnnotatorChips(annotators) {
+  el.pageAnnotators.innerHTML = "";
+  if (!annotators.length) return;
+
+  const label = document.createElement("span");
+  label.className = "page-annotators-label";
+  label.textContent = "Annotatoren:";
+  el.pageAnnotators.appendChild(label);
+
+  for (const { name, complete } of annotators) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "page-annotator-chip";
+    chip.textContent = name;
+    chip.title = complete ? `${name}: Seite fertig` : `${name}: Seite offen`;
+    chip.classList.toggle("complete", complete);
+    chip.classList.toggle("active", name === state.annotator);
+    chip.addEventListener("click", () => {
+      if (name !== state.annotator) switchAnnotator(name);
+    });
+    el.pageAnnotators.appendChild(chip);
+  }
+}
+
+// Shared by the topbar Annotator field and the sidebar's per-page chips —
+// both just need to land on a different annotator's view of the current page.
+async function switchAnnotator(name) {
+  flushSave();
+  state.annotator = name;
+  el.annotatorInput.value = name;
+  localStorage.setItem(ANNOTATOR_KEY, name);
+  state.annotation = null; // reload this page's gold under the new annotator
+  state.focusedBlock = -1;
+  fetchAnnotatorProgress();
+  if (state.compareMode === "correct") await renderAll();
+}
+
 // Three-state workflow per text block:
 //   "editing" — never confirmed since it was last empty/untyped. Diff hidden
 //               (so a first-time blind read isn't spoiled by the answer).
-//   "pending" — confirmed at least once and has text ("Under review"); diff
+//   "pending" — confirmed at least once and has text ("Zu prüfen"); diff
 //               shown and updates live. Reaching this is always automatic —
 //               matching the OCR exactly is a good sign, not proof, so it's
 //               never enough on its own to call something reviewed.
-//   "done"    — "Reviewed": only ever set by the annotator's explicit
+//   "done"    — "Geprüft": only ever set by the annotator's explicit
 //               3-state toggle (sidebar) or the Reviewed control, i.e. a
 //               deliberate human decision, never automatically.
 // Once a block has left "editing", further edits keep it at "pending" (never
@@ -764,8 +904,8 @@ function evaluateReview(block) {
 // A fresh annotation seeded from the Datalab page: every text block starts
 // empty, so the annotator transcribes from the scan unanchored by the OCR
 // text — that's the whole point of post-editing being post-editing rather
-// than retyping. Each block's "Insert OCR text" button (and the page-level
-// "Insert all OCR text") is the opt-in way to pull the OCR text in instead,
+// than retyping. Each block's "OCR-Text einfügen" button (and the page-level
+// "OCR-Text überall einfügen") is the opt-in way to pull the OCR text in instead,
 // per block or for the whole page, if that's faster for a given page.
 // ocr_text is always the OCR text, derived with the *same* htmlToText the
 // scoring export uses, so a block left untouched contributes zero CER rather
@@ -792,21 +932,110 @@ function seedAnnotation(pageDataA) {
     page: state.pageNum,
     complete: false,
     page_note: "",
-    // Layout section (sidebar): whole-page structural signals, distinct from
-    // per-block text corrections — assumed fine (true/false defaults below)
-    // unless the annotator flags otherwise while auditing the full layout
-    // with "Show all boxes". layout_reviewed is different: it starts false
-    // regardless, and is the explicit "I looked" confirmation that gates
-    // page completion (see computePageComplete) — the other two fields
-    // already default to "looks fine", so leaving them untouched can't be
-    // told apart from having actually checked them.
-    reading_order_correct: true,
-    layout_has_errors: false,
-    layout_error_note: "",
-    layout_reviewed: false,
+    // Layout section (sidebar): a whole-page structural signal, distinct from
+    // per-block text corrections. Starts "unrated" — never assumed fine, so
+    // rating it at all *is* the "I checked the layout" confirmation that
+    // gates page completion (computePageComplete).
+    layout_schema: LAYOUT_SCHEMA,
+    layout: emptyLayout(),
     updated_at: null,
     blocks,
   };
+}
+
+// Lift a saved page to the current layout schema, in place, and repair a
+// damaged one. Idempotent, so it's safe to run on every load. Handles three
+// older shapes, detected by shape rather than layout_schema (a stale number
+// can't be trusted — see the earlier codes-vs-notes cuts, which reused the
+// same number):
+//
+//   - a single combined rating (general+reading_order folded into one) this
+//     schema replaced: mirrored onto both aspects, since which of the two
+//     was the actual problem is no longer recoverable from that shape alone
+//     (layout_legacy, if present, is read instead — see below).
+//   - the three-rated-dimension shape (segmentation/classification/
+//     reading_order, each with its own rating+note): segmentation +
+//     classification collapse into "general" ("error" if either was, "ok"
+//     if both were, else "unrated"); reading_order carries over as its own
+//     aspect. Notes from all three, deduplicated.
+//   - v1 (reading_order_correct / layout_has_errors / layout_error_note /
+//     layout_reviewed) — see layoutRatingsFromV1Flags.
+//
+// The one-off pipelines/03_eval/migrate_layout_annotations.py does the same
+// thing on disk, plus a two-entry table correcting the two pages where a v1
+// note contradicted its own flag (roc=true while the note describes an
+// ordering problem) — this fallback can't know about those specific pages,
+// so it trusts the flags mechanically, same as everything else here.
+function migrateLayout(saved) {
+  const layout = saved.layout;
+  const legacy = saved.layout_legacy;
+
+  if (layout && typeof layout === "object" && "general" in layout && "reading_order" in layout) {
+    // Already the current shape — repair only.
+    let changed = Number(saved.layout_schema) !== LAYOUT_SCHEMA;
+    for (const { key } of LAYOUT_ASPECTS) {
+      if (!layout[key] || !LAYOUT_RATINGS.includes(layout[key].rating)) {
+        layout[key] = { rating: "unrated" };
+        changed = true;
+      }
+    }
+    if (typeof layout.note !== "string") {
+      layout.note = "";
+      changed = true;
+    }
+    if (changed) {
+      saved.layout_schema = LAYOUT_SCHEMA;
+      saved.complete = computePageComplete(saved);
+    }
+    return;
+  }
+
+  if (layout && typeof layout === "object" && ("segmentation" in layout || "classification" in layout)) {
+    const seg = layout.segmentation || {};
+    const cls = layout.classification || {};
+    const ro = layout.reading_order || {};
+    const generalRatings = [seg.rating, cls.rating];
+    const general = generalRatings.includes("error")
+      ? "error"
+      : generalRatings.every((r) => r === "ok")
+        ? "ok"
+        : "unrated";
+    const notes = [...new Set([seg, cls, ro].map((dim) => layoutNoteText(dim).trim()).filter(Boolean))];
+    saved.layout = { general: { rating: general }, reading_order: { rating: ro.rating || "unrated" }, note: notes.join(" · ") };
+    saved.layout_schema = LAYOUT_SCHEMA;
+    saved.complete = computePageComplete(saved);
+    return;
+  }
+
+  if (layout && typeof layout === "object" && "rating" in layout) {
+    const fromLegacy = legacy && typeof legacy === "object" ? layoutRatingsFromV1Flags(legacy) : null;
+    const general = fromLegacy ? fromLegacy.general : layout.rating;
+    const readingOrder = fromLegacy ? fromLegacy.readingOrder : layout.rating;
+    const note = fromLegacy ? fromLegacy.note : layoutNoteText(layout);
+    saved.layout = { general: { rating: general }, reading_order: { rating: readingOrder }, note };
+    saved.layout_schema = LAYOUT_SCHEMA;
+    saved.complete = computePageComplete(saved);
+    return;
+  }
+
+  const { general, readingOrder, note } = layoutRatingsFromV1Flags(saved);
+
+  // Keep the v1 values verbatim: the mapping above drops information on
+  // purpose (mixed polarity, a "reviewed" flag with no v4 equivalent), and
+  // this is a gold standard — the provenance should survive it.
+  saved.layout_legacy = {
+    reading_order_correct: saved.reading_order_correct,
+    layout_has_errors: saved.layout_has_errors,
+    layout_error_note: saved.layout_error_note,
+    layout_reviewed: saved.layout_reviewed,
+  };
+  delete saved.reading_order_correct;
+  delete saved.layout_has_errors;
+  delete saved.layout_error_note;
+  delete saved.layout_reviewed;
+  saved.layout_schema = LAYOUT_SCHEMA;
+  saved.layout = { general: { rating: general }, reading_order: { rating: readingOrder }, note };
+  saved.complete = computePageComplete(saved);
 }
 
 async function loadAnnotationForCurrentPage(pageDataA) {
@@ -842,14 +1071,7 @@ async function loadAnnotationForCurrentPage(pageDataA) {
           if (!b.review) evaluateReview(b);
           delete b.confirmed;
         }
-        // Layout fields didn't exist in older saved files — default them in
-        // rather than leaving them undefined (undefined reads as unchecked
-        // for the two booleans, which happens to be the wrong default for
-        // reading_order_correct).
-        if (typeof saved.reading_order_correct !== "boolean") saved.reading_order_correct = true;
-        if (typeof saved.layout_has_errors !== "boolean") saved.layout_has_errors = false;
-        if (typeof saved.layout_error_note !== "string") saved.layout_error_note = "";
-        if (typeof saved.layout_reviewed !== "boolean") saved.layout_reviewed = false;
+        migrateLayout(saved);
         state.annotation = saved;
       } else {
         state.annotation = seed;
@@ -918,8 +1140,8 @@ function renderCorrectMessage(pane, text) {
 function renderGoldDiff() {
   const { raw, gold } = correctPageTexts();
   el.diffLegend.innerHTML = "";
-  el.diffLegend.appendChild(diffChip(DIFF_RAW_COLOR, "raw OCR (removed)"));
-  el.diffLegend.appendChild(diffChip(DIFF_GOLD_COLOR, "correction (added)"));
+  el.diffLegend.appendChild(diffChip(DIFF_RAW_COLOR, "Roh-OCR (entfernt)"));
+  el.diffLegend.appendChild(diffChip(DIFF_GOLD_COLOR, "Korrektur (ergänzt)"));
   el.diffContent.innerHTML = wordDiffHtml(raw, gold);
 }
 
@@ -952,26 +1174,26 @@ function renderEditableList(pane, pageDataA) {
     item.className = "content-item correct-item";
     item.dataset.status = block.status;
     if (isTextBlock(block)) item.dataset.review = block.review;
-    item.style.setProperty("--box-color", colorFor(block.type));
 
     const num = document.createElement("div");
     num.className = "num";
-    num.style.setProperty("--box-color", colorFor(block.type));
     num.textContent = block.added ? "+" : boxIndex + 1;
 
     const body = document.createElement("div");
     body.className = "body";
 
-    // Header row: type, the 3-state toggle + Illegible, and (pushed to the
-    // far right) the Insert-OCR-text button — all in one line per block, so
-    // every control for a block lives right on it instead of requiring a
-    // trip to the sidebar.
+    // Header row: number, type, the 3-state toggle + Illegible, and (pushed
+    // to the far right) the Insert-OCR-text button — all in one line per
+    // block, so every control for a block lives right on it instead of
+    // requiring a trip to the sidebar.
     const header = document.createElement("div");
     header.className = "block-header";
+    header.appendChild(num);
 
     const tag = document.createElement("div");
     tag.className = "type-tag";
-    tag.textContent = block.added ? `${block.type} · added` : block.type;
+    tag.style.setProperty("--box-color", colorFor(block.type));
+    tag.textContent = block.added ? `${block.type} · ergänzt` : block.type;
     header.appendChild(tag);
 
     body.appendChild(header);
@@ -1007,6 +1229,13 @@ function renderEditableList(pane, pageDataA) {
 
       const diffStrip = document.createElement("div");
       diffStrip.className = "gt-diff";
+      const diffLabel = document.createElement("span");
+      diffLabel.className = "gt-diff-label";
+      diffLabel.textContent = "OCR";
+      const diffText = document.createElement("span");
+      diffText.className = "gt-diff-text";
+      diffStrip.appendChild(diffLabel);
+      diffStrip.appendChild(diffText);
 
       // The 3-state toggle (Editing / Under review / Reviewed) + Illegible,
       // inline in the header so every control for a block lives on the block
@@ -1039,8 +1268,8 @@ function renderEditableList(pane, pageDataA) {
       illegibleBtn.type = "button";
       illegibleBtn.tabIndex = -1;
       illegibleBtn.className = "illegible-btn";
-      illegibleBtn.textContent = "Illegible";
-      illegibleBtn.title = "Source can't be read — excluded from scoring";
+      illegibleBtn.textContent = "Unleserlich";
+      illegibleBtn.title = "Vorlage nicht lesbar — wird nicht in die Bewertung einbezogen";
       illegibleBtn.addEventListener("click", () => {
         toggleIllegible(block);
         refresh();
@@ -1094,8 +1323,8 @@ function renderEditableList(pane, pageDataA) {
       textarea.addEventListener("blur", () => {
         if (dirty) {
           // Finishing a block for the first time confirms it — moves it from
-          // "editing" to "pending" ("Under review") and reveals the diff.
-          // Never auto-promotes to "Reviewed": matching the OCR exactly is a
+          // "editing" to "pending" ("Zu prüfen") and reveals the diff.
+          // Never auto-promotes to "Geprüft": matching the OCR exactly is a
           // good sign, not proof, so only the 3-state toggle can mark
           // something Reviewed.
           evaluateReview(block);
@@ -1107,7 +1336,7 @@ function renderEditableList(pane, pageDataA) {
 
       // One-click accept: copies the OCR text in as-is (useful when it's
       // already correct — no need to retype it). Same as confirming any
-      // other edit: moves to "Under review", not straight to "Reviewed" —
+      // other edit: moves to "Zu prüfen", not straight to "Geprüft" —
       // still requires the explicit toggle.
       let importBtn = null;
       if (!block.added && block.ocr_text) {
@@ -1115,8 +1344,8 @@ function renderEditableList(pane, pageDataA) {
         importBtn.type = "button";
         importBtn.tabIndex = -1;
         importBtn.className = "import-ocr-btn";
-        importBtn.textContent = "Insert OCR text";
-        importBtn.title = "Copy the OCR text into this field";
+        importBtn.textContent = "OCR-Text einfügen";
+        importBtn.title = "OCR-Text in dieses Feld übernehmen";
         importBtn.addEventListener("click", () => {
           textarea.value = block.ocr_text;
           block.gt_text = block.ocr_text;
@@ -1138,7 +1367,7 @@ function renderEditableList(pane, pageDataA) {
         removeBlockBtn.type = "button";
         removeBlockBtn.tabIndex = -1;
         removeBlockBtn.className = "remove-block-btn";
-        removeBlockBtn.textContent = "✕ Remove block";
+        removeBlockBtn.textContent = "✕ Block entfernen";
         removeBlockBtn.addEventListener("click", () => {
           const idx = state.annotation.blocks.indexOf(block);
           if (idx >= 0) state.annotation.blocks.splice(idx, 1);
@@ -1175,7 +1404,7 @@ function renderEditableList(pane, pageDataA) {
         media.appendChild(img);
       } else {
         media.classList.add("empty-msg");
-        media.textContent = "(no image)";
+        media.textContent = "(kein Bild)";
       }
       media.addEventListener("focus", syncOnFocus);
 
@@ -1183,21 +1412,21 @@ function renderEditableList(pane, pageDataA) {
       navField = media;
     }
 
-    // Note: collapsed behind a small "+ Add note" button unless it already
+    // Note: collapsed behind a small "+ Notiz hinzufügen" button unless it already
     // has content (e.g. a resumed page) or the annotator explicitly opens
     // it; "✕" clears and collapses it again. Shared by both branches above.
     const addNoteBtn = document.createElement("button");
     addNoteBtn.type = "button";
     addNoteBtn.tabIndex = -1;
     addNoteBtn.className = "add-note-btn";
-    addNoteBtn.textContent = "+ Add note";
+    addNoteBtn.textContent = "+ Notiz hinzufügen";
 
     const noteField = document.createElement("div");
     noteField.className = "block-note-field";
     const noteInput = document.createElement("textarea");
     noteInput.className = "block-note-input";
     noteInput.tabIndex = -1;
-    noteInput.placeholder = "optional note about this block";
+    noteInput.placeholder = "optionale Notiz zu diesem Block";
     noteInput.value = block.note || "";
     noteInput.rows = 1;
     noteInput.spellcheck = false;
@@ -1214,7 +1443,7 @@ function renderEditableList(pane, pageDataA) {
     removeNoteBtn.tabIndex = -1;
     removeNoteBtn.className = "remove-note-btn";
     removeNoteBtn.textContent = "✕";
-    removeNoteBtn.title = "Remove note";
+    removeNoteBtn.title = "Notiz entfernen";
     removeNoteBtn.addEventListener("click", () => {
       block.note = "";
       noteInput.value = "";
@@ -1239,7 +1468,6 @@ function renderEditableList(pane, pageDataA) {
     body.appendChild(addNoteBtn);
     body.appendChild(noteField);
 
-    item.appendChild(num);
     item.appendChild(body);
     pane.contentList.appendChild(item);
     if (navField.tagName === "TEXTAREA") autoGrow(navField); // size to content now it's laid out
@@ -1253,7 +1481,7 @@ function renderEditableList(pane, pageDataA) {
 // Helpers shared by the per-block controls built inline in renderEditableList
 // (the 3-state toggle, Illegible, Insert OCR text, Note, Remove).
 
-const REVIEW_LABELS = { editing: "Editing", pending: "Under review", done: "Reviewed" };
+const REVIEW_LABELS = { editing: "In Arbeit", pending: "Zu prüfen", done: "Geprüft" };
 // Alt+1/2/3 jump the focused block to a review state directly.
 const REVIEW_KEYS = { 1: "editing", 2: "pending", 3: "done" };
 
@@ -1267,14 +1495,25 @@ function blocksAllReviewed(annotation) {
     .every((b) => b.status === "illegible" || b.review === "done");
 }
 
-// A page is complete once every block is resolved *and* the annotator has
-// explicitly confirmed they checked the page's reading order and layout.
-// That second half is a deliberate, forced gate — reading_order_correct and
-// layout_has_errors already default to "looks fine", so leaving them
-// untouched can't be told apart from having actually checked; layout_reviewed
-// starts false and only the annotator ticking it moves it to true.
+// Whether the layout rating is still open — either aspect unrated, or either
+// rated "error" with nothing written down (the shared note has to say
+// *something* once either aspect is flagged, so a rating and its
+// description can never drift apart the way they did in the v1 data, where
+// 10 pages described a layout problem in prose while only 7 had the boolean
+// set).
+function layoutOpen(annotation) {
+  const layout = annotation ? annotation.layout : null;
+  if (!layout) return true;
+  const ratings = LAYOUT_ASPECTS.map(({ key }) => layout[key] && layout[key].rating);
+  if (ratings.some((r) => r !== "ok" && r !== "error")) return true;
+  return ratings.includes("error") && !layoutNoteText(layout).trim();
+}
+
+// A page is complete once every block is resolved *and* the layout has been
+// rated. There's no separate "I checked the layout" confirmation any more:
+// since nothing is pre-rated, having a rating at all *is* the confirmation.
 function computePageComplete(annotation) {
-  return Boolean(annotation) && blocksAllReviewed(annotation) && annotation.layout_reviewed === true;
+  return Boolean(annotation) && blocksAllReviewed(annotation) && !layoutOpen(annotation);
 }
 
 function toggleIllegible(block) {
@@ -1315,7 +1554,11 @@ function updateDiffStrip(item, block) {
   const show = !block.added && block.review !== "editing" && block.status !== "illegible";
   strip.hidden = !show;
   strip.classList.toggle("matched", block.gt_text.trim() === block.ocr_text.trim());
-  strip.innerHTML = show ? wordDiffHtml(block.ocr_text, block.gt_text) : "";
+  // Break the read-back at list-item boundaries when they're detectable
+  // (see listItemMarkers) — display only, doesn't touch ocr_text/gt_text or
+  // the diff itself.
+  const markers = show ? listItemMarkers(block.html) : null;
+  strip.querySelector(".gt-diff-text").innerHTML = show ? wordDiffHtml(block.ocr_text, block.gt_text, markers) : "";
 }
 
 function autoGrow(textarea) {
@@ -1327,7 +1570,7 @@ function scrollBoxIntoView(pane, i) {
   pane.boxEls[i]?.scrollIntoView({ block: "center", inline: "nearest" });
 }
 
-// Bulk version of the per-block "Insert OCR text" button: overwrites every
+// Bulk version of the per-block "OCR-Text einfügen" button: overwrites every
 // original (non-added), non-illegible text block's gt_text with its OCR
 // text. A quick way to seed a whole page from the OCR baseline (e.g. to
 // switch a mostly-correct page from blind to post-editing) rather than
@@ -1345,6 +1588,48 @@ function insertAllOcrText() {
   renderAll();
 }
 
+function setLayoutRating(key, rating) {
+  const layout = state.annotation && state.annotation.layout;
+  if (!layout || !layout[key] || !state.annotator) return;
+  if (layout[key].rating === rating) return;
+  layout[key].rating = rating;
+  // The shared note describes whichever aspect is wrong, so it's only
+  // cleared once *neither* aspect is "error" any more — clearing it the
+  // moment either one leaves "error" would silently blank out a
+  // description that's still about the other one.
+  const stillError = LAYOUT_ASPECTS.some(({ key: k }) => layout[k].rating === "error");
+  if (!stillError) layout.note = "";
+  scheduleSave();
+  updateCorrectSidebar();
+}
+
+function setLayoutNote(text) {
+  const layout = state.annotation && state.annotation.layout;
+  if (!layout || !state.annotator) return;
+  layout.note = text;
+  scheduleSave();
+}
+
+// The rating toggles and note are static elements (index.html) wired once in
+// the event-wiring section below, not rebuilt every render. This just syncs
+// their state to the current annotation.
+function renderLayoutRating() {
+  const layout = state.annotation ? state.annotation.layout : emptyLayout();
+  const enabled = Boolean(state.annotator && state.annotation);
+
+  for (const { key } of LAYOUT_ASPECTS) {
+    const toggle = el.layoutToggles[key];
+    const rating = (layout[key] && layout[key].rating) || "unrated";
+    for (const btn of toggle.children) {
+      btn.disabled = !enabled;
+      btn.classList.toggle("active", btn.dataset.value === rating);
+    }
+  }
+
+  el.layoutNote.value = layoutNoteText(layout);
+  el.layoutNote.disabled = !enabled;
+}
+
 function updateCorrectSidebar() {
   const a = state.annotation;
   const blocks = a ? a.blocks : [];
@@ -1359,12 +1644,12 @@ function updateCorrectSidebar() {
   // mid-phrase — a dot color-codes each to match its review state.
   el.correctProgress.innerHTML = "";
   const chips = [
-    ["done", done, "reviewed"],
-    ["pending", pending, "under review"],
-    ["editing", editing, "editing"],
+    ["done", done, "geprüft"],
+    ["pending", pending, "zu prüfen"],
+    ["editing", editing, "in Arbeit"],
   ];
-  if (illegible) chips.push(["illegible", illegible, "illegible"]);
-  if (added) chips.push([null, added, "added"]);
+  if (illegible) chips.push(["illegible", illegible, "unleserlich"]);
+  if (added) chips.push([null, added, "ergänzt"]);
   for (const [reviewValue, count, label] of chips) {
     const chip = document.createElement("span");
     chip.className = "progress-chip";
@@ -1378,21 +1663,32 @@ function updateCorrectSidebar() {
     el.correctProgress.appendChild(chip);
   }
 
-  // Read-only, derived — no manual toggle for the block half; the layout
-  // half is gated on the explicit "I've checked..." checkbox below. The
-  // message says *which* half is still open, since "not complete" alone
-  // doesn't explain why once there are two independent conditions.
+  // Read-only, derived — no manual toggle for either half. Two counts on one
+  // line rather than a sentence: that prose wrapped to three lines in this
+  // sidebar, and it duplicated what the toggle right below already shows at
+  // a glance (unrated sits on "–").
   const blocksOk = blocksAllReviewed(a);
-  const layoutOk = Boolean(a && a.layout_reviewed);
-  const complete = blocksOk && layoutOk;
+  const layoutIsOpen = layoutOpen(a);
+  const complete = blocksOk && !layoutIsOpen;
   let statusText = "";
+  let statusTitle = "";
   if (a && blocks.length) {
-    if (complete) statusText = "Page complete";
-    else if (!blocksOk && !layoutOk) statusText = "Not complete — blocks + layout review pending";
-    else if (!blocksOk) statusText = "Not complete — blocks pending";
-    else statusText = "Not complete — layout review pending";
+    if (complete) {
+      statusText = "✓ Seite fertig";
+      statusTitle = "Alle Blöcke geprüft, Layout bewertet.";
+    } else {
+      // One "offen:" for both counts, so each half reads the same way and a
+      // finished half simply drops out.
+      const openBlocks = editing + pending;
+      const parts = [];
+      if (!blocksOk) parts.push(`${openBlocks} ${openBlocks === 1 ? "Block" : "Blöcke"}`);
+      if (layoutIsOpen) parts.push("Layout");
+      statusText = `offen: ${parts.join(", ")}`;
+      statusTitle = layoutIsOpen ? "Layout noch zu bewerten." : "Layout bewertet.";
+    }
   }
   el.pageCompleteStatus.textContent = statusText;
+  el.pageCompleteStatus.title = statusTitle;
   el.pageCompleteStatus.dataset.complete = complete ? "yes" : "no";
 
   el.pageNote.value = a ? a.page_note || "" : "";
@@ -1401,14 +1697,7 @@ function updateCorrectSidebar() {
   el.showGoldDiff.checked = state.showGoldDiff;
 
   el.showAllBoxes.checked = state.showAllBoxes;
-  el.readingOrderCorrect.checked = a ? a.reading_order_correct !== false : true;
-  el.readingOrderCorrect.disabled = !state.annotator;
-  el.layoutHasErrors.checked = Boolean(a && a.layout_has_errors);
-  el.layoutHasErrors.disabled = !state.annotator;
-  el.layoutErrorNote.value = a ? a.layout_error_note || "" : "";
-  el.layoutErrorNote.disabled = !state.annotator;
-  el.layoutReviewed.checked = layoutOk;
-  el.layoutReviewed.disabled = !state.annotator;
+  renderLayoutRating();
 
   if (!state.annotator) setSaveState("no-annotator");
   else if (!el.correctSave.dataset.state) setSaveState("idle");
@@ -1417,10 +1706,10 @@ function updateCorrectSidebar() {
 function setSaveState(kind, detail) {
   const labels = {
     idle: "",
-    saving: "Saving…",
-    saved: "Saved",
-    error: `Save failed: ${detail || ""}`,
-    "no-annotator": "Enter an annotator name to begin.",
+    saving: "Speichere…",
+    saved: "Gespeichert",
+    error: `Speichern fehlgeschlagen: ${detail || ""}`,
+    "no-annotator": "Zum Starten oben ein Annotator-Kürzel eintragen.",
   };
   el.correctSave.dataset.state = kind;
   el.correctSave.textContent = labels[kind] ?? "";
@@ -1480,7 +1769,7 @@ function updateLayout() {
   const mode = state.compareMode;
   const correct = mode === "correct";
   // In Correct mode the middle pane is either the editable block list
-  // (content-pane-a) or, when "Show diff vs raw OCR" is on, the flat word-diff
+  // (content-pane-a) or, when "Diff zum Roh-OCR anzeigen" is on, the flat word-diff
   // pane (diff-pane) — same two panes the diff modes already use.
   const showDiffPane = mode === "diff" || (correct && state.showGoldDiff);
   el.rowB.hidden = mode !== "side";
@@ -1498,7 +1787,7 @@ function updateLayout() {
   // the pane instead of being stuck at the bottom with nothing left to
   // scroll past it.
   el.contentListA.classList.toggle("scroll-pad", correct);
-  // "Show all boxes" (Layout section) is the only box toggle in Correct mode —
+  // "Alle Boxen anzeigen" (Layout section) is the only box toggle in Correct mode —
   // hide the topbar's and force the overlay on so it can't be left blank.
   el.toggleBoxesField.hidden = correct;
   if (correct) {
@@ -1559,19 +1848,11 @@ el.compareMode.addEventListener("change", async () => {
 // ---------- correction-mode wiring ----------
 state.annotator = (localStorage.getItem(ANNOTATOR_KEY) || "").trim();
 el.annotatorInput.value = state.annotator;
-el.annotatorInput.addEventListener("change", async () => {
-  flushSave();
-  state.annotator = el.annotatorInput.value.trim();
-  localStorage.setItem(ANNOTATOR_KEY, state.annotator);
-  state.annotation = null; // reload this page's gold under the new annotator
-  state.focusedBlock = -1;
-  fetchAnnotatorProgress();
-  if (state.compareMode === "correct") await renderAll();
-});
+el.annotatorInput.addEventListener("change", () => switchAnnotator(el.annotatorInput.value.trim()));
 el.insertAllOcr.addEventListener("click", () => insertAllOcrText());
 
 // ---------- Layout section ----------
-// "Show all boxes" is a viewing preference, not part of the gold standard —
+// "Alle Boxen anzeigen" is a viewing preference, not part of the gold standard —
 // not persisted into the annotation JSON, just localStorage.
 const SHOW_ALL_BOXES_KEY = "ocr-show-all-boxes";
 state.showAllBoxes = localStorage.getItem(SHOW_ALL_BOXES_KEY) === "1";
@@ -1581,30 +1862,43 @@ el.showAllBoxes.addEventListener("change", async () => {
   localStorage.setItem(SHOW_ALL_BOXES_KEY, state.showAllBoxes ? "1" : "0");
   await renderAll();
 });
-// reading_order_correct / layout_has_errors / layout_error_note *are* part of
-// the gold standard (whole-page structural signals, not tied to one block) —
-// persisted the same way as page_note.
-el.readingOrderCorrect.addEventListener("change", () => {
-  if (!state.annotation) return;
-  state.annotation.reading_order_correct = el.readingOrderCorrect.checked;
-  scheduleSave();
-});
-el.layoutHasErrors.addEventListener("change", () => {
-  if (!state.annotation) return;
-  state.annotation.layout_has_errors = el.layoutHasErrors.checked;
-  scheduleSave();
-});
-el.layoutErrorNote.addEventListener("input", () => {
-  if (!state.annotation) return;
-  state.annotation.layout_error_note = el.layoutErrorNote.value;
-  scheduleSave();
-});
-el.layoutErrorNote.addEventListener("blur", () => flushSave());
-el.layoutReviewed.addEventListener("change", () => {
-  if (!state.annotation) return;
-  state.annotation.layout_reviewed = el.layoutReviewed.checked;
-  scheduleSave();
-  updateCorrectSidebar(); // the completion status message depends on this
+// The layout ratings and note *are* part of the gold standard (whole-page
+// structural signals, not tied to one block) — persisted the same way as
+// page_note. Built once (LAYOUT_ASPECTS/LAYOUT_RATING_LABELS are the only
+// source for the labels/button text) and wired here; renderLayoutRating only
+// ever syncs their state.
+for (const { key, label } of LAYOUT_ASPECTS) {
+  const group = document.createElement("div");
+  group.className = "layout-aspect";
+  const name = document.createElement("span");
+  name.className = "layout-aspect-label";
+  name.textContent = label;
+  group.appendChild(name);
+
+  const toggle = document.createElement("div");
+  toggle.className = "review-toggle rating-toggle";
+  for (const rating of LAYOUT_RATINGS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.tabIndex = -1; // out of the Tab sequence, like every other sidebar control
+    btn.dataset.value = rating;
+    btn.textContent = LAYOUT_RATING_LABELS[rating];
+    btn.title =
+      rating === "unrated" ? `${label}: noch nicht geprüft` : `${label}: geprüft, ${rating === "ok" ? "in Ordnung" : "fehlerhaft"}`;
+    btn.addEventListener("click", () => setLayoutRating(key, rating));
+    toggle.appendChild(btn);
+  }
+  group.appendChild(toggle);
+  el.layoutAspects.appendChild(group);
+  el.layoutToggles[key] = toggle;
+}
+el.layoutNote.addEventListener("input", () => setLayoutNote(el.layoutNote.value));
+// Completion depends on whether this has content, so refresh on blur rather
+// than on every keystroke — re-rendering mid-word would yank the caret out
+// of the field being typed in.
+el.layoutNote.addEventListener("blur", () => {
+  flushSave();
+  updateCorrectSidebar();
 });
 
 el.showGoldDiff.addEventListener("change", async () => {
@@ -1690,7 +1984,7 @@ el.toggleBoxes.addEventListener("change", () => {
 
 (async function init() {
   try {
-    setStatus("Loading document list ...");
+    setStatus("Lade Dokumentliste …");
     await loadManifest();
     setStatus("");
     if (state.manifest.documents.length === 0) return;
@@ -1722,7 +2016,7 @@ el.toggleBoxes.addEventListener("change", () => {
 
     updateUrl();
   } catch (err) {
-    setStatus(`Error: ${err.message}`);
+    setStatus(`Fehler: ${err.message}`);
     console.error(err);
   }
 })();

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uni-regensburg.de/flugblattsammlung/schema/page-1.0.json",
+  "title": "Seite (Page-Record)",
+  "description": "Eine gescannte Seite eines Jahrgangs-PDFs. Traegt den OCR-Text und ist unveraenderlich - einzig 'doc_id' aendert sich, wenn das Splitting korrigiert wird.",
+  "type": "object",
+  "required": ["schema_version", "page_id", "volume_id", "page_no", "doc_id", "text", "ocr"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+
+    "page_id": { "type": "string", "pattern": "^[0-9]{4}_[0-9]{4}#p[0-9]{4}$", "examples": ["0118_0002#p0006"] },
+    "volume_id": { "type": "string", "pattern": "^[0-9]{4}_[0-9]{4}$" },
+    "page_no": { "type": "integer", "minimum": 1, "description": "1-indiziert, wie in segments.json (Datalab zaehlt intern ab 0)." },
+
+    "doc_id": { "type": ["string", "null"],
+      "description": "Aktuelle Zuordnung zu einem Flugblatt. DAS Feld, das ein Neuschnitt aendert. null = noch keinem Dokument zugeordnet." },
+    "position_in_doc": { "type": ["integer", "null"], "minimum": 1 },
+
+    "text": { "type": "string", "description": "Plaintext der Seite (HTML-Tags entfernt, Entities aufgeloest)." },
+    "blocks_ref": {
+      "type": "object",
+      "description": "Zeiger auf die Datalab-Blockdaten statt Kopie - die Polygone sind gross und aendern sich nie.",
+      "required": ["file", "child_index"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "examples": ["0118_0002/0118_0002.json"] },
+        "child_index": { "type": "integer", "minimum": 0,
+          "description": "Array-Position in children[], NICHT das id-Feld: bei batchweiser Konvertierung starten die ids je Batch neu (siehe extract_metadata.py)." }
+      }
+    },
+
+    "page_header": { "type": ["string", "null"], "description": "Inhalt des ersten PageHeader-Blocks, roh." },
+    "boundary_signals": {
+      "type": "object",
+      "description": "Vorberechnete Grenzsignale aus den OCR-Bloecken; speisen die Flags im Dokument-Record.",
+      "additionalProperties": false,
+      "properties": {
+        "header_page_number": { "type": ["integer", "null"],
+          "description": "Zahl aus einer Kopfzeile wie '- 2 -' oder '- Seite 2 -'. Wert > 1 = Fortsetzungsseite, spricht stark GEGEN einen Segmentbeginn." },
+        "header_is_masthead": { "type": "boolean", "default": false,
+          "description": "Kopfzeile ist eine Sigel-Leiste wie 'LSD - LSD - LSD - ...' - starkes Signal FUER einen Segmentbeginn." },
+        "header_has_date": { "type": "boolean", "default": false },
+        "first_block_type": { "type": ["string", "null"], "examples": ["PageHeader", "SectionHeader", "Text", "Picture"] },
+        "start_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1,
+          "description": "Aggregierte Wahrscheinlichkeit, dass hier ein neues Blatt beginnt." }
+      }
+    },
+
+    "ocr": {
+      "type": "object",
+      "required": ["engine"],
+      "additionalProperties": true,
+      "properties": {
+        "engine": { "type": "string", "examples": ["datalab-chandra-2", "mistral-ocr-4"] },
+        "mode": { "type": "string" },
+        "run": { "type": "string" },
+        "inference_failed": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

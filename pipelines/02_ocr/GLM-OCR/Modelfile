@@ -1,0 +1,13 @@
+# Optional: only needed if plain `ollama pull glm-ocr` produces truncated or
+# garbled output on scanned document pages. Ollama's default context window
+# is too small for image input plus a full-page OCR response; this widens it.
+#
+# Usage (from this directory):
+#   ollama create glm-ocr-flugblatt -f Modelfile
+#   python pipelines/02_ocr/glm_convert.py PDF --ollama -m glm-ocr-flugblatt:latest
+#
+# num_thread: set to your CPU's logical processor count (Windows: check Task
+# Manager > Performance > CPU, or `(Get-CimInstance Win32_Processor).NumberOfLogicalProcessors`).
+FROM glm-ocr
+PARAMETER num_ctx 16384
+PARAMETER num_thread 8
