@@ -183,6 +183,8 @@ Nach Aufwand sortiert:
 
 ## 8. Reproduzieren
 
+Ausführliche Anleitung mit OpenRouter-Key: `pipelines/04_topic/SETUP.md`.
+
 Abhängigkeiten: `bertopic`, `umap-learn`, `spacy` mit `de_core_news_lg`,
 `stop-words`, `openai`, `python-dotenv`; `OPENROUTER_API_KEY` in `.env`.
 Unter Windows das virtuelle Environment unter einem kurzen Pfad anlegen,

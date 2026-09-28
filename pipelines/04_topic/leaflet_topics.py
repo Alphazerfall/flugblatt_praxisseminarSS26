@@ -7,7 +7,8 @@ Segment aus `<stem>.segments.json`, und die Embeddings kommen von einem
 aktuellen Modell mit langem Kontext (Standard: baai/bge-m3).
 
 Ablauf:
-  1. Text je Segment aus der Datalab-OCR-JSON (ohne Bilder, Kopf-/Fußzeilen).
+  1. Text je Segment aus der Datalab-OCR-JSON (ohne Bilder, Kopf-/Fußzeilen
+     und Archivvermerke wie "Ablage 12043").
   2. Embeddings über OpenRouter, zwischengespeichert unter
      data/cache/embeddings/<modell>.npz, Schlüssel ist der Hash des Textes.
      Nur neue oder geänderte Texte werden angefragt; Parameter von UMAP,
@@ -19,8 +20,8 @@ Ablauf:
      Clusters sonst die Sachbegriffe verdrängen. Die Cluster selbst bleiben
      davon unberührt.
 
-Schreibt data/topics/topics.<modell>.json und .hierarchy.html (Dendrogramm
-der Themen, Grundlage für die Entscheidung über --num-topics).
+Schreibt data/topics/topics.<modell>[.n<themen>].json und .hierarchy.html
+(Dendrogramm der Themen, Grundlage für die Entscheidung über --num-topics).
 
 Beispiele:
     python pipelines/04_topic/leaflet_topics.py
@@ -51,7 +52,30 @@ BASE_URL = "https://openrouter.ai/api/v1"
 SKIP_BLOCK_TYPES = {"Picture", "Figure", "PictureGroup", "FigureGroup",
                     "PageHeader", "PageFooter"}
 MAX_CHARS = 16000          # bleibt sicher unter 8k Tokens (bge-m3)
-EXTRA_STOPWORDS = ["daß", "dass", "wurde", "worden", "sowie", "bzw", "xxx"]
+
+# Bearbeitungsvermerke des Archivs, kein Inhalt der Flugblätter:
+# "2, Ablage 12043 27. NOV. 1972" (Ablagenummer mit Eingangsstempel), "z. K."
+ARCHIVE_STAMPS = re.compile(
+    r"\bAblage\s*[\d\s()]{2,8}(?:\d{1,2}\.?\s*[A-ZÄ]{3,5}\.?\s*19\d\d)?"
+    r"|\bz\.\s?K\.|\bErbitte Rückgabe")
+
+EXTRA_STOPWORDS = [
+    "daß", "dass", "wurde", "worden", "sowie", "bzw", "xxx",
+    # Allerweltswörter im Hochschulkontext
+    "student", "studenten", "studentin", "kommilitone", "universität", "uni",
+    "regensburg", "studentenschaft",
+    # Füllsubstantive
+    "zeit", "jahr", "herr", "frage", "seite", "fall", "punkt", "teil", "art",
+    "weise", "grund", "beispiel",
+    # Termine
+    "uhr", "januar", "februar", "märz", "april", "mai", "juni", "juli",
+    "august", "september", "oktober", "november", "dezember", "montag",
+    "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag",
+    # Archiv und Impressum
+    "ablage", "anlage", "eigendruck", "selbstverlag", "druck", "presserecht",
+    # Kürzel aus Wahllisten
+    "sem", "gesch", "soz", "mitgl", "theol", "phil", "päd", "stud", "abs",
+]
 
 
 def log(msg):
@@ -63,7 +87,7 @@ def strip_html(fragment):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def load_leaflets():
+def load_leaflets(skip=SKIP_BLOCK_TYPES):
     leaflets = []
     for seg_path in sorted(RAW_DIR.glob("*/*.segments.json")):
         volume = seg_path.parent.name
@@ -81,8 +105,9 @@ def load_leaflets():
             parts = [strip_html(b.get("html"))
                      for page in pages[seg["start_page"] - 1:seg["end_page"]]
                      for b in page.get("children", [])
-                     if b.get("block_type") not in SKIP_BLOCK_TYPES]
-            text = " ".join(p for p in parts if p)
+                     if b.get("block_type") not in skip]
+            text = ARCHIVE_STAMPS.sub(" ", " ".join(p for p in parts if p))
+            text = re.sub(r"\s+", " ", text).strip()
             if len(text) < 50:
                 continue
             leaflets.append({"volume": volume, "stem": stem, "year": year,
@@ -254,7 +279,8 @@ def main():
                     for lf, t in zip(leaflets, topics)]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUT_DIR / f"topics.{args.model.replace('/', '__')}.json"
+    run = args.model.replace('/', '__') + (f".n{args.num_topics}" if args.num_topics else "")
+    out_path = OUT_DIR / f"topics.{run}.json"
     out_path.write_text(json.dumps({
         "model": args.model, "min_topic_size": args.min_topic_size,
         "num_topics": args.num_topics, "seed": args.seed,
