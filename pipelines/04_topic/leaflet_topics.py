@@ -31,6 +31,7 @@ Braucht OPENROUTER_API_KEY in der Umgebung oder in .env.
 """
 
 import argparse
+import csv
 import hashlib
 import html
 import json
@@ -47,6 +48,7 @@ RAW_DIR = REPO_ROOT / "data" / "raw"
 CACHE_DIR = REPO_ROOT / "data" / "cache" / "embeddings"
 OUT_DIR = REPO_ROOT / "data" / "topics"
 ORGS_PATH = REPO_ROOT / "docs" / "korpus" / "findmittel" / "organizations.draft.json"
+DUPLICATE_PAGES_PATH = REPO_ROOT / "docs" / "korpus" / "seiten_duplikate.tsv"
 BASE_URL = "https://openrouter.ai/api/v1"
 
 SKIP_BLOCK_TYPES = {"Picture", "Figure", "PictureGroup", "FigureGroup",
@@ -63,7 +65,7 @@ EXTRA_STOPWORDS = [
     "daß", "dass", "wurde", "worden", "sowie", "bzw", "xxx",
     # Allerweltswörter im Hochschulkontext
     "student", "studenten", "studentin", "kommilitone", "universität", "uni",
-    "regensburg", "studentenschaft",
+    "regensburg", "studentenschaft", "herr",
     # Füllsubstantive
     "zeit", "jahr", "herr", "frage", "seite", "fall", "punkt", "teil", "art",
     "weise", "grund", "beispiel",
@@ -87,8 +89,32 @@ def strip_html(fragment):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def load_duplicate_page_map(path=DUPLICATE_PAGES_PATH):
+    """Map each duplicate page to the first occurrence in its page group."""
+    if not path.is_file():
+        log(f"  ! Duplikat-Tabelle fehlt: {path}")
+        return {}
+    duplicate_pages = {}
+    with path.open(encoding="utf-8-sig", newline="") as source:
+        for row in csv.DictReader(source, delimiter="\t"):
+            pages = [int(page) for page in row["alle_seiten"].split(",")]
+            canonical_page = min(pages)
+            page_map = duplicate_pages.setdefault(row["stem"], {})
+            page_map.update({page: canonical_page for page in pages})
+    return duplicate_pages
+
+
+def is_complete_duplicate_segment(segment, duplicate_pages):
+    """Return whether every page is a non-canonical documented duplicate."""
+    page_map = duplicate_pages.get(segment["stem"], {})
+    pages = range(segment["start_page"], segment["end_page"] + 1)
+    return all(page_map.get(page) not in (None, page) for page in pages)
+
+
 def load_leaflets(skip=SKIP_BLOCK_TYPES):
     leaflets = []
+    duplicate_pages = load_duplicate_page_map()
+    skipped_duplicates = 0
     for seg_path in sorted(RAW_DIR.glob("*/*.segments.json")):
         volume = seg_path.parent.name
         stem = seg_path.name.removesuffix(".segments.json")
@@ -101,6 +127,9 @@ def load_leaflets(skip=SKIP_BLOCK_TYPES):
         segments = json.loads(seg_path.read_text(encoding="utf-8"))["segments"]
         for seg in segments:
             if seg.get("no_content"):
+                continue
+            if is_complete_duplicate_segment({"stem": stem, **seg}, duplicate_pages):
+                skipped_duplicates += 1
                 continue
             parts = [strip_html(b.get("html"))
                      for page in pages[seg["start_page"] - 1:seg["end_page"]]
@@ -115,6 +144,8 @@ def load_leaflets(skip=SKIP_BLOCK_TYPES):
                              "start_page": seg["start_page"],
                              "end_page": seg["end_page"],
                              "text": text})
+    if skipped_duplicates:
+        log(f"  {skipped_duplicates} vollstaendig duplizierte Flugblaetter uebersprungen")
     return leaflets
 
 
@@ -231,6 +262,36 @@ def build_topic_model(args):
                     language="multilingual", verbose=True)
 
 
+def quality_metrics(embeddings, topics, topics_out, seed):
+    """Return reproducible indicators for comparing modelling runs."""
+    assigned_indices = [index for index, topic in enumerate(topics) if topic != -1]
+    assigned_topics = [topics[index] for index in assigned_indices]
+    top_words = [word for topic in topics_out for word in topic["top_words"]]
+    silhouette = None
+    if len(set(assigned_topics)) >= 2:
+        from sklearn.metrics import silhouette_score
+
+        sample_size = min(1000, len(assigned_indices))
+        generator = np.random.default_rng(seed)
+        sample = generator.choice(assigned_indices, size=sample_size, replace=False)
+        try:
+            silhouette = float(silhouette_score(
+                embeddings[sample], [topics[index] for index in sample], metric="cosine"))
+        except ValueError as exc:
+            log(f"  ! Silhouette konnte nicht berechnet werden: {exc}")
+
+    total = len(topics)
+    return {
+        "document_count": total,
+        "assigned_document_count": len(assigned_indices),
+        "outlier_count": total - len(assigned_indices),
+        "outlier_share": (total - len(assigned_indices)) / total if total else 0.0,
+        "topic_count": len(topics_out),
+        "topic_diversity": len(set(top_words)) / len(top_words) if top_words else None,
+        "silhouette_cosine": silhouette,
+    }
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -243,6 +304,8 @@ def parse_args():
     p.add_argument("--lemma-model", default="de_core_news_lg")
     p.add_argument("--embed-only", action="store_true",
                    help="nur Embeddings berechnen und cachen")
+    p.add_argument("--reduce-outliers", action="store_true",
+                   help="Ausreisser nachtraeglich und als unsicher zuordnen")
     return p.parse_args()
 
 
@@ -261,6 +324,16 @@ def main():
     topic_model = build_topic_model(args)
     docs = lemmatize(texts, args.lemma_model)
     topics, _ = topic_model.fit_transform(docs, embeddings=embeddings)
+    assignment_sources = ["clustered" if topic != -1 else "outlier" for topic in topics]
+    if args.reduce_outliers and -1 in topics:
+        reassigned_topics = topic_model.reduce_outliers(
+            docs, topics, strategy="distributions", embeddings=embeddings)
+        assignment_sources = [
+            "reassigned_uncertain" if old == -1 and new != -1 else source
+            for old, new, source in zip(topics, reassigned_topics, assignment_sources)
+        ]
+        topics = [int(topic) for topic in reassigned_topics]
+        topic_model.update_topics(docs, topics=topics)
 
     info = topic_model.get_topic_info()
     topics_out = [{"id": int(row.Topic), "count": int(row.Count),
@@ -268,15 +341,18 @@ def main():
                   for row in info.itertuples() if row.Topic != -1]
 
     years = [lf["year"] for lf in leaflets]
-    over_time = topic_model.topics_over_time(docs, years)
+    over_time = topic_model.topics_over_time(docs, years, topics=topics)
     by_year = [{"topic": int(r.Topic), "year": int(round(r.Timestamp)),
                 "count": int(r.Frequency)}
                for r in over_time.itertuples() if r.Topic != -1]
+    quality = quality_metrics(embeddings, topics, topics_out, args.seed)
+    quality["reassigned_document_count"] = assignment_sources.count("reassigned_uncertain")
 
     leaflets_out = [{k: lf[k] for k in ("volume", "stem", "year", "segment_id",
                                         "start_page", "end_page")}
-                    | {"topic": int(t), "incipit": lf["text"][:120]}
-                    for lf, t in zip(leaflets, topics)]
+                          | {"topic": int(topic), "topic_assignment": source,
+                              "incipit": lf["text"][:120]}
+                          for lf, topic, source in zip(leaflets, topics, assignment_sources)]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     run = args.model.replace('/', '__') + (f".n{args.num_topics}" if args.num_topics else "")
@@ -284,7 +360,9 @@ def main():
     out_path.write_text(json.dumps({
         "model": args.model, "min_topic_size": args.min_topic_size,
         "num_topics": args.num_topics, "seed": args.seed,
-        "topics": topics_out, "topics_by_year": by_year, "leaflets": leaflets_out,
+        "reduce_outliers": args.reduce_outliers,
+        "quality": quality, "topics": topics_out, "topics_by_year": by_year,
+        "leaflets": leaflets_out,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     hierarchy = topic_model.hierarchical_topics(docs)

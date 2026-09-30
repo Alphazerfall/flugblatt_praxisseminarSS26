@@ -40,6 +40,7 @@ li { margin: 3px 0; }
 .badge { margin-left: 6px; padding: 1px 6px; border-radius: 9px; font-size: 11px; background: #f3f4f6; color: #4b5563; }
 .badge.Sachthema { background: #dcfce7; color: #166534; }
 .badge.gemischt { background: #fef9c3; color: #854d0e; }
+.uncertain { color: #854d0e; font-size: 12px; }
 """
 
 
@@ -92,7 +93,8 @@ def main():
         items = "".join(
             f"<li>{html.escape(lf['incipit'][:110])}… "
             f"<span class='meta'>{html.escape(lf['volume'])}, S. {lf['start_page']}"
-            f"{'–' + str(lf['end_page']) if lf['end_page'] != lf['start_page'] else ''}</span></li>"
+            f"{'–' + str(lf['end_page']) if lf['end_page'] != lf['start_page'] else ''}</span>"
+            f"<span class='uncertain'>{' nachträglich zugeordnet' if lf.get('topic_assignment') == 'reassigned_uncertain' else ''}</span></li>"
             for lf in sorted(by_topic[t["id"]], key=lambda x: (x["stem"], x["start_page"])))
         label = f"<details><summary>{heading}</summary><ul>{items}</ul></details>"
         cells = "".join(
@@ -103,6 +105,8 @@ def main():
         rows.append(f"<tr><td class='label'>{label}</td>{cells}</tr>")
 
     n_out = len(by_topic.get(-1, []))
+    n_reassigned = sum(lf.get("topic_assignment") == "reassigned_uncertain"
+                       for lf in leaflets)
     hierarchy = src.with_suffix(".hierarchy.html")
     link = (f" · <a href='{hierarchy.name}'>Dendrogramm</a>"
             if hierarchy.is_file() else "")
@@ -114,7 +118,8 @@ def main():
 <html lang="de"><head><meta charset="utf-8"><title>Themen im Zeitverlauf</title>
 <style>{CSS}</style></head><body>
 <h1>Themen im Zeitverlauf</h1>
-<p class="sub">{len(leaflets)} Flugblätter, {len(data['topics'])} Themen, {n_out} ohne Thema ·
+<p class="sub">{len(leaflets)} Flugblätter, {len(data['topics'])} Themen, {n_out} ohne Thema,
+{n_reassigned} nachträglich zugeordnet ·
 Modell {html.escape(data['model'])} · Zahlen = Anteil am Jahrgang in % · Thema anklicken für die Flugblätter{link}</p>
 <table><tr><th class="topic">Thema</th>{head}</tr>{''.join(rows)}</table>
 </body></html>"""

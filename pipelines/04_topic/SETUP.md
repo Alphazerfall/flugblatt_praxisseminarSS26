@@ -57,13 +57,16 @@ Aus dem Repo-Hauptordner, mit aktivierter Umgebung:
 
 ```powershell
 # Themen berechnen (Embeddings beim ersten Lauf ~1 min, danach aus dem Cache)
-python pipelines\04_topic\leaflet_topics.py --num-topics 35
+python pipelines\04_topic\leaflet_topics.py --num-topics 50
+
+# Ausreisser nachtraeglich zuordnen; diese Zuordnungen bleiben im JSON markiert
+python pipelines\04_topic\leaflet_topics.py --num-topics 50 --reduce-outliers
 
 # Heatmap Thema x Jahr, mit Titeln aus der Codierungstabelle
-python pipelines\04_topic\topics_report.py data\topics\topics.baai__bge-m3.n35.json
+python pipelines\04_topic\topics_report.py data\topics\topics.baai__bge-m3.n50.json
 
 # Organisationen nach Jahr und Thema
-python pipelines\04_topic\orgs_report.py data\topics\topics.baai__bge-m3.n35.json
+python pipelines\04_topic\orgs_report.py data\topics\topics.baai__bge-m3.n50.json
 ```
 
 Ergebnisse liegen unter `data/topics/` (JSON, Heatmap, Dendrogramm,
@@ -72,6 +75,12 @@ Beides ist nicht in Git.
 
 Weitere Optionen: `python pipelines\04_topic\leaflet_topics.py --help`,
 z. B. `--model qwen/qwen3-embedding-8b` oder `--min-topic-size 8`.
+
+Die Ergebnis-JSON enthaelt unter `quality` Dokumentzahl, Ausreisserquote,
+Topic-Diversitaet und eine deterministisch gesampelte Cosine-Silhouette. Diese
+Werte vergleichen Laeufe, ersetzen aber nicht die inhaltliche Themenpruefung.
+Bei `--reduce-outliers` traegt jedes nachtraeglich zugeordnete Flugblatt den
+Status `topic_assignment: "reassigned_uncertain"`.
 
 ## Codierungstabellen
 

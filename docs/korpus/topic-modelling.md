@@ -13,8 +13,9 @@
   modelliert, ein **aktuelles Embedding-Modell mit langem Kontext** nutzt und
   die Themen **von Hand beschriftet**, angelehnt an Achmann & Wolff (2023).
 - Ergebnis nach Zusammenfassung: **24 Themen** über 1 911 Flugblätter, davon
-  14 Sachthemen. Die Beschriftungen sind ein KI-Entwurf und müssen geprüft
-  werden.
+  14 Sachthemen. Dieser dokumentierte Lauf liegt vor dem Duplikatfilter; ein
+  neuer Lauf verarbeitet 1 899 Flugblätter. Die Beschriftungen sind ein
+  KI-Entwurf und müssen geprüft werden.
 
 ## 1. Ausgangsstand: Branch `dev-ner`
 
@@ -75,7 +76,7 @@ ihn nicht).
 
 | Schritt | Umsetzung |
 |---|---|
-| Dokumente | ein Flugblatt = ein Segment aus `<stem>.segments.json`; 1 911 Flugblätter aus 14 Bänden (Segmente ohne Inhalt oder unter 50 Zeichen entfallen) |
+| Dokumente | ein Flugblatt = ein Segment aus `<stem>.segments.json`; aktuell 1 899 Flugblätter aus 14 Bänden. Segmente ohne Inhalt, unter 50 Zeichen oder vollständig dupliziert entfallen. |
 | Text | Datalab-OCR ohne Bild-, Kopf- und Fußzeilenblöcke; auf 16 000 Zeichen gekürzt (betrifft 79 Flugblätter) |
 | Embeddings | `baai/bge-m3` über OpenRouter (bis ~8 000 Tokens, offenes Modell); zwischengespeichert in `data/cache/embeddings/`, Schlüssel ist der Hash des Textes. Ein voller Lauf kostet geschätzt 2 Cent und dauert etwa eine Minute |
 | Clustering | UMAP (15 Nachbarn, 5 Dimensionen, Seed 42), HDBSCAN über BERTopic mit Mindestgröße 10 |
@@ -150,6 +151,10 @@ Spitzen 1969 und 1972/73; die Demokratische Mitte als Thema vor allem
 - **Ausreißer:** 23 % der Flugblätter haben kein Thema.
 - **Abhängigkeit von der Segmentierung:** Fehler in `segments.json` schlagen
   direkt durch (siehe `segmentierungsfehler.md`).
+- **Duplikate:** Der aktuelle Lauf überspringt zwölf Segmente, die vollständig
+  aus dokumentierten Duplikatseiten bestehen. Teilweise duplizierte Segmente
+  bleiben bewusst erhalten, damit kein Text eines sonst eigenständigen
+  Flugblatts verloren geht.
 - **Reproduzierbarkeit:** feste Seeds, aber Ergebnisse hängen von Parametern
   und dem Embedding-Anbieter ab; bge-m3 ist offen und ließe sich notfalls
   lokal rechnen.
@@ -161,8 +166,8 @@ Nach Aufwand sortiert:
 1. **Codierungstabelle prüfen** und den Status auf `geprüft` setzen.
 2. **Themenzahl festlegen:** Dendrogramm ansehen; ggf. 30–35 Themen, damit
    z. B. 1968 und 1972 getrennt bleiben (braucht eine neue Tabelle).
-3. **Ausreißer nachträglich zuordnen** (`reduce_outliers` in BERTopic),
-   gekennzeichnet als unsicher.
+3. **Ausreißer nachträglich zuordnen** (`--reduce-outliers` in BERTopic),
+   gekennzeichnet als unsicher; nur zusätzlich zum Basislauf auswerten.
 4. **Namen vor dem Embedding maskieren** (Personen und Organisationen durch
    Platzhalter ersetzen), damit die Cluster weniger nach Absender entstehen.
    Kostet eine neue Einbettung (~2 Cent).
