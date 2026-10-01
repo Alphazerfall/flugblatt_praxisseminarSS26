@@ -82,6 +82,11 @@ Werte vergleichen Laeufe, ersetzen aber nicht die inhaltliche Themenpruefung.
 Bei `--reduce-outliers` traegt jedes nachtraeglich zugeordnete Flugblatt den
 Status `topic_assignment: "reassigned_uncertain"`.
 
+Beim JSON-Export werden konfigurierte Stoppwörter zusätzlich geprüft: Auch
+N-Gramme mit einem Stoppwort-Bestandteil erscheinen nicht in `top_words`.
+Bestehende Ergebnisdateien behalten ihre bisherigen Themenwörter; dafür ist
+ein erneuter Modelllauf erforderlich, die Embeddings bleiben dabei im Cache.
+
 ## Codierungstabellen
 
 `topic_labels.<modell>.n<themen>.csv` enthält Titel und Kategorien zu genau

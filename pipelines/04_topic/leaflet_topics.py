@@ -39,6 +39,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import numpy as np
@@ -239,17 +240,35 @@ def org_stopwords():
     return words - NOT_ORG_ACRONYMS
 
 
-def build_topic_model(args):
-    from bertopic import BERTopic
-    from sklearn.feature_extraction.text import CountVectorizer
-    from umap import UMAP
-
+def topic_stopwords() -> set[str]:
+    """Return the complete normalized stopword set for topic representations."""
     try:
         import stop_words
         german = stop_words.get_stop_words("german")
     except ImportError:
         german = []
-    stopwords = {w.lower() for w in german} | set(EXTRA_STOPWORDS) | org_stopwords()
+    return {word.lower() for word in german} | set(EXTRA_STOPWORDS) | org_stopwords()
+
+
+def is_stopword_topic_term(term: str, stopwords: set[str]) -> bool:
+    """Return whether a topic term contains an excluded word."""
+    tokens = re.findall(r"(?u)[^\W\d_]{3,}", term.lower())
+    return not tokens or any(token in stopwords for token in tokens)
+
+
+def export_topic_words(topic_terms: Iterable[tuple[str, float]], stopwords: set[str],
+                       limit: int = 10) -> list[str]:
+    """Keep only displayable topic terms that contain no configured stopwords."""
+    return [term for term, _ in topic_terms
+            if not is_stopword_topic_term(term, stopwords)][:limit]
+
+
+def build_topic_model(args):
+    from bertopic import BERTopic
+    from sklearn.feature_extraction.text import CountVectorizer
+    from umap import UMAP
+
+    stopwords = topic_stopwords()
     vectorizer = CountVectorizer(
         stop_words=sorted(stopwords),
         token_pattern=r"(?u)\b[^\W\d_]{3,}\b",
@@ -336,8 +355,10 @@ def main():
         topic_model.update_topics(docs, topics=topics)
 
     info = topic_model.get_topic_info()
+    stopwords = topic_stopwords()
     topics_out = [{"id": int(row.Topic), "count": int(row.Count),
-                   "top_words": [w for w, _ in topic_model.get_topic(row.Topic)[:10]]}
+                   "top_words": export_topic_words(
+                       topic_model.get_topic(row.Topic), stopwords)}
                   for row in info.itertuples() if row.Topic != -1]
 
     years = [lf["year"] for lf in leaflets]
