@@ -39,14 +39,17 @@ import os
 import re
 import sys
 import time
+import warnings
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = REPO_ROOT / "data" / "raw"
 CACHE_DIR = REPO_ROOT / "data" / "cache" / "embeddings"
+LABEL_CACHE_DIR = REPO_ROOT / "data" / "cache" / "topic_labels"
 OUT_DIR = REPO_ROOT / "data" / "topics"
 ORGS_PATH = REPO_ROOT / "docs" / "korpus" / "findmittel" / "organizations.draft.json"
 DUPLICATE_PAGES_PATH = REPO_ROOT / "docs" / "korpus" / "seiten_duplikate.tsv"
@@ -55,6 +58,9 @@ BASE_URL = "https://openrouter.ai/api/v1"
 SKIP_BLOCK_TYPES = {"Picture", "Figure", "PictureGroup", "FigureGroup",
                     "PageHeader", "PageFooter"}
 MAX_CHARS = 16000          # bleibt sicher unter 8k Tokens (bge-m3)
+LABEL_PROMPT_VERSION = 1
+MAX_LABEL_LENGTH = 120
+MAX_LABEL_EXCERPT_CHARS = 700
 
 # Bearbeitungsvermerke des Archivs, kein Inhalt der Flugblätter:
 # "2, Ablage 12043 27. NOV. 1972" (Ablagenummer mit Eingangsstempel), "z. K."
@@ -167,7 +173,8 @@ def save_cache(path, cache):
     np.savez(path, keys=np.array(keys), vectors=np.stack([cache[k] for k in keys]))
 
 
-def embed(texts, model, batch_size):
+def openrouter_client() -> Any:
+    """Create an authenticated OpenRouter client from the local environment."""
     from dotenv import load_dotenv
     from openai import OpenAI
 
@@ -175,7 +182,11 @@ def embed(texts, model, batch_size):
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         sys.exit("OPENROUTER_API_KEY fehlt (Umgebung oder .env).")
-    client = OpenAI(base_url=BASE_URL, api_key=api_key)
+    return OpenAI(base_url=BASE_URL, api_key=api_key)
+
+
+def embed(texts, model, batch_size):
+    client = openrouter_client()
 
     cache_path = CACHE_DIR / f"{model.replace('/', '__')}.npz"
     cache = load_cache(cache_path)
@@ -263,6 +274,153 @@ def export_topic_words(topic_terms: Iterable[tuple[str, float]], stopwords: set[
             if not is_stopword_topic_term(term, stopwords)][:limit]
 
 
+def automatic_topic_label(topic_words: list[str], limit: int = 3) -> str:
+    """Create a compact, deterministic descriptor from representative unigrams."""
+    unigrams = [word for word in topic_words if " " not in word]
+    terms = (unigrams or topic_words)[:limit]
+    return " / ".join(term.capitalize() for term in terms) or "Unbenanntes Thema"
+
+
+def label_cache_path(model: str) -> Path:
+    """Return the cache location for labels created by an OpenRouter model."""
+    return LABEL_CACHE_DIR / f"{model.replace('/', '__')}.json"
+
+
+def load_label_cache(path: Path) -> dict[str, str]:
+    """Load validated labels from a previous run."""
+    if not path.is_file():
+        return {}
+    try:
+        cache = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Ungültiger Label-Cache: {path}") from exc
+    if not isinstance(cache, dict) or not all(
+            isinstance(key, str) and isinstance(label, str)
+            for key, label in cache.items()):
+        raise ValueError(f"Ungültiges Format im Label-Cache: {path}")
+    return cache
+
+
+def save_label_cache(path: Path, cache: dict[str, str]) -> None:
+    """Persist labels atomically so interrupted runs retain valid cache data."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_suffix(".tmp")
+    temporary_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary_path.replace(path)
+
+
+def topic_label_fingerprint(model: str, topic_words: list[str], excerpts: list[str]) -> str:
+    """Fingerprint all label inputs to prevent stale cached labels."""
+    payload = json.dumps({"version": LABEL_PROMPT_VERSION, "model": model,
+                          "words": topic_words, "excerpts": excerpts},
+                         ensure_ascii=False, sort_keys=True)
+    return text_key(payload)
+
+
+def representative_excerpts(texts: list[str], topics: list[int], embeddings: np.ndarray,
+                            topic_id: int, limit: int = 3) -> list[str]:
+    """Select central documents in a topic by cosine similarity to its centroid."""
+    indices = [index for index, topic in enumerate(topics) if topic == topic_id]
+    if not indices:
+        return []
+    vectors = embeddings[indices]
+    norms = np.linalg.norm(vectors, axis=1)
+    nonzero = norms > 0
+    if not np.any(nonzero):
+        return []
+    normalized_vectors = vectors[nonzero] / norms[nonzero, np.newaxis]
+    normalized_indices = np.asarray(indices)[nonzero]
+    centroid = normalized_vectors.mean(axis=0)
+    centroid_norm = np.linalg.norm(centroid)
+    if centroid_norm == 0:
+        return []
+    scores = normalized_vectors @ (centroid / centroid_norm)
+    ranked_indices = normalized_indices[np.argsort(scores)[::-1][:limit]]
+    return [re.sub(r"\s+", " ", texts[index]).strip()[:MAX_LABEL_EXCERPT_CHARS]
+            for index in ranked_indices]
+
+
+def label_prompt(topic_words: list[str], excerpts: list[str]) -> str:
+    """Build a constrained prompt that prevents unsupported historical claims."""
+    evidence = "\n\n".join(
+        f"Auszug {index}: {excerpt}" for index, excerpt in enumerate(excerpts, start=1))
+    return (
+        "Gib diesem Cluster historischer deutscher Flugblätter einen kurzen, "
+        "sachlichen deutschen Themenbezeichner. Nutze nur die unten stehenden "
+        "Belege. Erfinde keine Akteure, Orte, Daten oder Ereignisse. Benenne "
+        "das Sachthema statt Absender, Stil oder OCR-Fehler. Verwende höchstens "
+        f"{MAX_LABEL_LENGTH} Zeichen. Antworte ausschließlich als JSON-Objekt "
+        'im Format {"label":"..."}.\n\n'
+        f"Schlüsselwörter: {', '.join(topic_words)}\n\n{evidence}")
+
+
+def parse_llm_label(content: str) -> str:
+    """Validate a model response before it can enter analysis output."""
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError("LLM-Antwort ist kein JSON-Objekt") from exc
+    label = payload.get("label") if isinstance(payload, dict) else None
+    if not isinstance(label, str):
+        raise ValueError("LLM-Antwort enthält kein Textfeld 'label'")
+    label = re.sub(r"\s+", " ", label).strip()
+    if not label or len(label) > MAX_LABEL_LENGTH:
+        raise ValueError("LLM-Label ist leer oder zu lang")
+    return label
+
+
+def request_llm_label(client: Any, model: str, topic_words: list[str],
+                      excerpts: list[str]) -> str:
+    """Request one validated label from an OpenRouter chat model."""
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        messages=[{"role": "user", "content": label_prompt(topic_words, excerpts)}],
+    )
+    content = response.choices[0].message.content
+    if not isinstance(content, str):
+        raise ValueError("LLM-Antwort enthält keinen Text")
+    return parse_llm_label(content)
+
+
+def add_llm_labels(topics_out: list[dict[str, Any]], texts: list[str], topics: list[int],
+                   embeddings: np.ndarray, model: str) -> None:
+    """Add cached, validated LLM labels to topic records in place."""
+    from openai import OpenAIError
+
+    client = openrouter_client()
+    cache_path = label_cache_path(model)
+    cache = load_label_cache(cache_path)
+    cached_count = 0
+    created_count = 0
+    failed_count = 0
+
+    for topic in topics_out:
+        excerpts = representative_excerpts(texts, topics, embeddings, topic["id"])
+        if not excerpts:
+            log(f"  ! Thema {topic['id']}: keine repräsentativen Texte für LLM-Label")
+            failed_count += 1
+            continue
+        cache_key = topic_label_fingerprint(model, topic["top_words"], excerpts)
+        if cache_key in cache:
+            topic["llm_label"] = cache[cache_key]
+            cached_count += 1
+            continue
+        try:
+            label = request_llm_label(client, model, topic["top_words"], excerpts)
+        except (OpenAIError, ValueError) as exc:
+            log(f"  ! Thema {topic['id']}: LLM-Label fehlgeschlagen: {exc}")
+            failed_count += 1
+            continue
+        cache[cache_key] = label
+        save_label_cache(cache_path, cache)
+        topic["llm_label"] = label
+        created_count += 1
+
+    log(f"LLM-Labels ({model}): {created_count} neu, {cached_count} aus Cache, "
+        f"{failed_count} fehlgeschlagen")
+
+
 def build_topic_model(args):
     from bertopic import BERTopic
     from sklearn.feature_extraction.text import CountVectorizer
@@ -311,6 +469,16 @@ def quality_metrics(embeddings, topics, topics_out, seed):
     }
 
 
+def hierarchical_topics(topic_model: Any, documents: list[str]):
+    """Generate a hierarchy without BERTopic's known pandas slice warning."""
+    from pandas.errors import SettingWithCopyWarning
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=SettingWithCopyWarning,
+                                module=r"bertopic\._bertopic")
+        return topic_model.hierarchical_topics(documents)
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -325,6 +493,8 @@ def parse_args():
                    help="nur Embeddings berechnen und cachen")
     p.add_argument("--reduce-outliers", action="store_true",
                    help="Ausreisser nachtraeglich und als unsicher zuordnen")
+    p.add_argument("--label-model", metavar="MODEL",
+                   help="OpenRouter-Chatmodell für optionale Themenbezeichner")
     return p.parse_args()
 
 
@@ -356,10 +526,17 @@ def main():
 
     info = topic_model.get_topic_info()
     stopwords = topic_stopwords()
-    topics_out = [{"id": int(row.Topic), "count": int(row.Count),
-                   "top_words": export_topic_words(
-                       topic_model.get_topic(row.Topic), stopwords)}
-                  for row in info.itertuples() if row.Topic != -1]
+    topics_out = []
+    for row in info.itertuples():
+        if row.Topic == -1:
+            continue
+        top_words = export_topic_words(topic_model.get_topic(row.Topic), stopwords)
+        topics_out.append({"id": int(row.Topic), "count": int(row.Count),
+                           "auto_label": automatic_topic_label(top_words),
+                           "top_words": top_words})
+
+    if args.label_model:
+        add_llm_labels(topics_out, texts, topics, embeddings, args.label_model)
 
     years = [lf["year"] for lf in leaflets]
     over_time = topic_model.topics_over_time(docs, years, topics=topics)
@@ -382,11 +559,12 @@ def main():
         "model": args.model, "min_topic_size": args.min_topic_size,
         "num_topics": args.num_topics, "seed": args.seed,
         "reduce_outliers": args.reduce_outliers,
+        "label_model": args.label_model,
         "quality": quality, "topics": topics_out, "topics_by_year": by_year,
         "leaflets": leaflets_out,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    hierarchy = topic_model.hierarchical_topics(docs)
+    hierarchy = hierarchical_topics(topic_model, docs)
     fig = topic_model.visualize_hierarchy(hierarchical_topics=hierarchy,
                                           width=1100, height=40 + 22 * len(topics_out))
     fig.write_html(out_path.with_suffix(".hierarchy.html"), include_plotlyjs="cdn")

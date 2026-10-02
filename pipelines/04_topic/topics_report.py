@@ -81,6 +81,8 @@ def main():
     rows = []
     for t in data["topics"]:
         words = html.escape(', '.join(t['top_words'][:5]))
+        generated_label = html.escape(t.get(
+            "llm_label", t.get("auto_label", ', '.join(t['top_words'][:3]))))
         lab = labels.get(t["id"])
         if lab:
             kat = html.escape(lab["kategorie"])
@@ -89,7 +91,9 @@ def main():
                        f"<span class='count'>{t['count']}</span>"
                        f"<span class='words'>{words}</span>")
         else:
-            heading = f"{words}<span class='count'>{t['count']}</span>"
+            heading = (f"<strong>{generated_label}</strong>"
+                       f"<span class='count'>{t['count']}</span>"
+                       f"<span class='words'>{words}</span>")
         items = "".join(
             f"<li>{html.escape(lf['incipit'][:110])}… "
             f"<span class='meta'>{html.escape(lf['volume'])}, S. {lf['start_page']}"

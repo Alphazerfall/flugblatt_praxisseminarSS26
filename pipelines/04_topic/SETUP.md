@@ -62,6 +62,9 @@ python pipelines\04_topic\leaflet_topics.py --num-topics 50
 # Ausreisser nachtraeglich zuordnen; diese Zuordnungen bleiben im JSON markiert
 python pipelines\04_topic\leaflet_topics.py --num-topics 50 --reduce-outliers
 
+# Optionale LLM-Bezeichner; erzeugt nur fuer neue Themenfingerabdruecke API-Anfragen
+python pipelines\04_topic\leaflet_topics.py --num-topics 50 --label-model openai/gpt-4.1-mini
+
 # Heatmap Thema x Jahr, mit Titeln aus der Codierungstabelle
 python pipelines\04_topic\topics_report.py data\topics\topics.baai__bge-m3.n50.json
 
@@ -71,7 +74,8 @@ python pipelines\04_topic\orgs_report.py data\topics\topics.baai__bge-m3.n50.jso
 
 Ergebnisse liegen unter `data/topics/` (JSON, Heatmap, Dendrogramm,
 Organisationsseite), der Embedding-Cache unter `data/cache/embeddings/`.
-Beides ist nicht in Git.
+LLM-Labels liegen unter `data/cache/topic_labels/`. Diese Verzeichnisse sind
+nicht in Git.
 
 Weitere Optionen: `python pipelines\04_topic\leaflet_topics.py --help`,
 z. B. `--model qwen/qwen3-embedding-8b` oder `--min-topic-size 8`.
@@ -86,6 +90,17 @@ Beim JSON-Export werden konfigurierte Stoppwörter zusätzlich geprüft: Auch
 N-Gramme mit einem Stoppwort-Bestandteil erscheinen nicht in `top_words`.
 Bestehende Ergebnisdateien behalten ihre bisherigen Themenwörter; dafür ist
 ein erneuter Modelllauf erforderlich, die Embeddings bleiben dabei im Cache.
+Jedes Thema erhält außerdem ein deterministisches `auto_label` aus bis zu drei
+bereinigten Schlüsselwörtern. Der HTML-Bericht zeigt einen Titel aus der
+Codierungstabelle vorrangig; ohne solchen Titel zeigt er das `auto_label`.
+
+`--label-model` aktiviert zusätzliche, kostenpflichtige Chat-Anfragen über
+OpenRouter. Das Modell erhält je Thema die bereinigten Schlüsselwörter und
+drei zentral gelegene Textauszüge. Seine JSON-Antwort wird validiert und als
+`llm_label` gespeichert; der Cache-Schlüssel enthält Modell, Prompt-Version,
+Schlüsselwörter und Auszüge. Bei einer fehlgeschlagenen Antwort bleibt der
+deterministische Bezeichner erhalten. Im Bericht gilt: geprüfter/manueller
+Titel, dann `llm_label`, dann `auto_label`.
 
 ## Codierungstabellen
 
