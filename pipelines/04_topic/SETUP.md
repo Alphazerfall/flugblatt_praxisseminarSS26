@@ -94,16 +94,15 @@ N-Gramme mit einem Stoppwort-Bestandteil erscheinen nicht in `top_words`.
 Bestehende Ergebnisdateien behalten ihre bisherigen Themenwörter; dafür ist
 ein erneuter Modelllauf erforderlich, die Embeddings bleiben dabei im Cache.
 Jedes Thema erhält außerdem ein deterministisches `auto_label` aus bis zu drei
-bereinigten Schlüsselwörtern. Der HTML-Bericht zeigt einen Titel aus der
-Codierungstabelle vorrangig; ohne solchen Titel zeigt er das `auto_label`.
+bereinigten Schlüsselwörtern; es dient nur als kompakter Fallback in der
+HTML-Berichtansicht und wird nicht in den Anwendungs-Export übernommen.
 
 `--label-model` aktiviert zusätzliche, kostenpflichtige Chat-Anfragen über
 OpenRouter. Das Modell erhält je Thema die bereinigten Schlüsselwörter und
 drei zentral gelegene Textauszüge. Seine JSON-Antwort wird validiert und als
 `llm_label` gespeichert; der Cache-Schlüssel enthält Modell, Prompt-Version,
 Schlüsselwörter und Auszüge. Bei einer fehlgeschlagenen Antwort bleibt der
-deterministische Bezeichner erhalten. Im Bericht gilt: geprüfter/manueller
-Titel, dann `llm_label`, dann `auto_label`.
+deterministische Bezeichner als Fallback für den Bericht erhalten.
 
 ## Codierungstabellen
 
@@ -112,11 +111,12 @@ einem Lauf. Ändern sich Modell, Themenzahl, Text oder Seed, ändern sich die
 Themen-IDs, und die Tabelle passt nicht mehr. Geprüfte Zeilen bekommen den
 Status `geprüft` statt `KI-Entwurf`.
 
-`export_topics.py` liest nur die Ergebnis-JSON. Der Titel eines Themas ist das
-`llm_label` (mit `--label-model`), sonst das `auto_label`; `title_source` nennt
-die Herkunft. Flugblätter werden im Export über Band und Seitenspanne
-identifiziert, nicht über die `segment_id`. Flugblätter ohne Thema haben
-`topic: null`.
+`export_topics.py` verwendet ausschließlich `llm_label` als `title`; das
+redundante `auto_label` wird nicht exportiert. Bei einem reduced-Lauf werden Labels
+aus der passenden Basis-JSON übernommen, sofern Modell, Seed, Themenzahl,
+Mindestgröße und Themen-IDs übereinstimmen. Fehlen passende LLM-Labels, bricht
+der Export ab. Flugblätter werden über Band und Seitenspanne identifiziert,
+nicht über `segment_id`; Flugblätter ohne Thema haben `topic: null`.
 
 ## Häufige Fehler
 

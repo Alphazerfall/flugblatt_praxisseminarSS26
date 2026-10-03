@@ -5,8 +5,8 @@
 
 Ohne Argument gilt die jüngste *.reduced.json in data/topics (Lauf mit
 --reduce-outliers). Schreibt standardmäßig data/topics/topics.json. Der Titel eines Themas ist das
-llm_label des Laufs (--label-model), sonst das auto_label. Beides stammt aus
-derselben Ergebnisdatei, passt also immer zu den Themen-IDs dieses Laufs.
+llm_label des Laufs. Für reduced-Läufe werden fehlende Labels aus dem
+passenden Basislauf mit denselben Modellparametern und Themen-IDs übernommen.
 
 Flugblätter werden über Band und Seitenspanne identifiziert, nicht über die
 segment_id: Verschiebt sich eine Segmentgrenze, fällt die Zuordnung weg, statt
@@ -33,13 +33,12 @@ class ExportError(Exception):
 
 
 def topic_title(topic: dict[str, Any]) -> tuple[str, str]:
-    """Gibt Titel und Herkunft zurück; das LLM-Label hat Vorrang."""
-    for source in ("llm_label", "auto_label"):
-        if topic.get(source):
-            return topic[source], source
+    """Uses the model-generated label as the exported title."""
+    if topic.get("llm_label"):
+        return topic["llm_label"], "llm_label"
     raise ExportError(
-        f"Thema {topic['id']} hat kein llm_label oder auto_label; "
-        "Lauf mit der aktuellen leaflet_topics.py wiederholen.")
+        f"Thema {topic['id']} hat kein llm_label. Führe den passenden Lauf mit "
+        "--label-model aus oder stelle dessen Ergebnis-JSON bereit.")
 
 
 def build_topics(run_topics: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -48,7 +47,9 @@ def build_topics(run_topics: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for topic in sorted(run_topics, key=lambda item: item["id"]):
         title, title_source = topic_title(topic)
         topics.append({"id": topic["id"], "title": title,
-                       "title_source": title_source, "words": topic["top_words"]})
+                       "title_source": title_source,
+                       "llm_label": topic.get("llm_label"),
+                       "words": topic["top_words"]})
     return topics
 
 
@@ -89,6 +90,27 @@ def build_export(run: dict[str, Any], source: Path) -> dict[str, Any]:
             "leaflets": build_leaflets(run["leaflets"], run_topic_ids)}
 
 
+def attach_base_run_labels(run: dict[str, Any], source: Path) -> None:
+    """Copies labels from a matching non-reduced run to its reduced result."""
+    if not source.name.endswith(".reduced.json"):
+        return
+    base_path = source.with_name(source.name.removesuffix(".reduced.json") + ".json")
+    if not base_path.is_file():
+        return
+    base_run = load_run(base_path)
+    run_keys = ("model", "num_topics", "seed", "min_topic_size")
+    if any(run.get(key) != base_run.get(key) for key in run_keys):
+        raise ExportError(f"Basislauf {base_path.name} hat abweichende Laufparameter")
+    current_topics = {topic["id"]: topic for topic in run["topics"]}
+    base_topics = {topic["id"]: topic for topic in base_run["topics"]}
+    if current_topics.keys() != base_topics.keys():
+        raise ExportError(f"Basislauf {base_path.name} hat andere Themen-IDs")
+    if any(not topic.get("llm_label") for topic in base_topics.values()):
+        raise ExportError(f"Basislauf {base_path.name} enthält nicht für alle Themen llm_label")
+    for topic_id, topic in current_topics.items():
+        topic["llm_label"] = base_topics[topic_id]["llm_label"]
+
+
 def load_run(source: Path) -> dict[str, Any]:
     """Liest ein Ergebnis von leaflet_topics.py und prüft die Pflichtfelder."""
     try:
@@ -123,7 +145,9 @@ def main() -> None:
     args = parse_args()
     try:
         source = args.source or latest_reduced_run(DEFAULT_OUTPUT.parent)
-        export = build_export(load_run(source), source)
+        run = load_run(source)
+        attach_base_run_labels(run, source)
+        export = build_export(run, source)
     except ExportError as exc:
         sys.exit(f"Export abgebrochen: {exc}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
