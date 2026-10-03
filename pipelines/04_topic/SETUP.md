@@ -70,6 +70,9 @@ python pipelines\04_topic\topics_report.py data\topics\topics.baai__bge-m3.n50.j
 
 # Organisationen nach Jahr und Thema
 python pipelines\04_topic\orgs_report.py data\topics\topics.baai__bge-m3.n50.json
+
+# Export für andere Anwendungen: jüngster --reduce-outliers-Lauf -> data/topics/topics.json
+python pipelines\04_topic\export_topics.py
 ```
 
 Ergebnisse liegen unter `data/topics/` (JSON, Heatmap, Dendrogramm,
@@ -108,6 +111,12 @@ Titel, dann `llm_label`, dann `auto_label`.
 einem Lauf. Ändern sich Modell, Themenzahl, Text oder Seed, ändern sich die
 Themen-IDs, und die Tabelle passt nicht mehr. Geprüfte Zeilen bekommen den
 Status `geprüft` statt `KI-Entwurf`.
+
+`export_topics.py` liest nur die Ergebnis-JSON. Der Titel eines Themas ist das
+`llm_label` (mit `--label-model`), sonst das `auto_label`; `title_source` nennt
+die Herkunft. Flugblätter werden im Export über Band und Seitenspanne
+identifiziert, nicht über die `segment_id`. Flugblätter ohne Thema haben
+`topic: null`.
 
 ## Häufige Fehler
 

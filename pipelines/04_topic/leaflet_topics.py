@@ -553,7 +553,9 @@ def main():
                           for lf, topic, source in zip(leaflets, topics, assignment_sources)]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    run = args.model.replace('/', '__') + (f".n{args.num_topics}" if args.num_topics else "")
+    run = (args.model.replace('/', '__')
+           + (f".n{args.num_topics}" if args.num_topics else "")
+           + (".reduced" if args.reduce_outliers else ""))
     out_path = OUT_DIR / f"topics.{run}.json"
     out_path.write_text(json.dumps({
         "model": args.model, "min_topic_size": args.min_topic_size,
