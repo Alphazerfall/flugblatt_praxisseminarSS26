@@ -20,6 +20,8 @@ from pypdf import PdfReader, PdfWriter
 
 from datalab_sdk import DatalabClient, PipelineProcessor
 
+from fix_image_collisions import unique_batch_images
+
 MAX_WAIT_MINUTES = 30
 POLL_SECONDS = 10
 DEFAULT_CONCURRENCY = 15
@@ -184,6 +186,8 @@ def run_batches(client, pipeline_id, pdf_path, fmt, batch_size, checkpoint_dir, 
 
 
 def merge_results(results, fmt):
+    # every batch names its pictures from its own page ids, so names repeat across batches
+    results = [unique_batch_images(r, fmt, i) for i, r in enumerate(results)]
     contents = [r[fmt] for r in results]
     if fmt in ("markdown", "html"):
         merged = "\n\n---\n\n".join(contents)

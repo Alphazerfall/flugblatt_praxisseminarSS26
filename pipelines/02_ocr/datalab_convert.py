@@ -17,6 +17,8 @@ import requests
 from dotenv import load_dotenv
 from pypdf import PdfReader, PdfWriter
 
+from fix_image_collisions import unique_batch_images
+
 
 # ---------- Constants ----------
 API_URL = "https://www.datalab.to/api/v1/convert"
@@ -164,6 +166,8 @@ def extract_batch_pdf(reader, pages, out_path):
 
 
 def merge_results(results, fmt, result_key, paginate=False):
+    # every batch names its pictures from its own page ids, so names repeat across batches
+    results = [unique_batch_images(r, result_key, i) for i, r in enumerate(results)]
     contents = [r[result_key] for r in results]
     if fmt in ("markdown", "html"):
         # With --paginate, each batch's own content already has a page
