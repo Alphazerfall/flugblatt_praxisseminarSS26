@@ -86,8 +86,8 @@ def main():
         lab = labels.get(t["id"])
         if lab:
             kat = html.escape(lab["kategorie"])
-            heading = (f"<strong>{html.escape(lab['titel'])}</strong>"
-                       f"<span class='badge {kat.split()[0]}'>{kat}</span>"
+            badge = f"<span class='badge {kat.split()[0]}'>{kat}</span>" if kat else ""
+            heading = (f"<strong>{html.escape(lab['titel'])}</strong>{badge}"
                        f"<span class='count'>{t['count']}</span>"
                        f"<span class='words'>{words}</span>")
         else:
