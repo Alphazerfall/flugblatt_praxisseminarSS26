@@ -30,3 +30,6 @@ data/
 
 # Notizen
 /seg*.txt
+
+# Screenshots/Snapshots aus UI-Tests
+/output/
