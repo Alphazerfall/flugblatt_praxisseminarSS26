@@ -99,10 +99,15 @@ HTML-Berichtansicht und wird nicht in den Anwendungs-Export übernommen.
 
 `--label-model` aktiviert zusätzliche, kostenpflichtige Chat-Anfragen über
 OpenRouter. Das Modell erhält je Thema die bereinigten Schlüsselwörter und
-drei zentral gelegene Textauszüge. Seine JSON-Antwort wird validiert und als
-`llm_label` gespeichert; der Cache-Schlüssel enthält Modell, Prompt-Version,
-Schlüsselwörter und Auszüge. Bei einer fehlgeschlagenen Antwort bleibt der
-deterministische Bezeichner als Fallback für den Bericht erhalten.
+drei zentral gelegene Textauszüge; wenn dafür keine verwertbaren Embeddings
+vorliegen, werden ersatzweise die ersten Texte des Themas verwendet. Der Prompt
+fordert immer einen knappen, sachlichen Titel und untersagt unbelegte
+Ergänzungen. Die JSON-Antwort wird validiert; bei ungültiger Antwort oder nicht
+verfügbarem JSON-Modus erfolgt ein zweiter Versuch. Der Cache-Schlüssel enthält
+Modell, Prompt-Version, Schlüsselwörter und Auszüge. Bleiben einzelne Labels
+fehlgeschlagen, bricht der Lauf vor dem Schreiben des Ergebnis-JSON ab;
+erfolgreiche Labels sind bereits gecacht und werden beim erneuten Lauf
+wiederverwendet.
 
 ## Codierungstabellen
 

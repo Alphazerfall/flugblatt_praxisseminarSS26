@@ -58,7 +58,7 @@ BASE_URL = "https://openrouter.ai/api/v1"
 SKIP_BLOCK_TYPES = {"Picture", "Figure", "PictureGroup", "FigureGroup",
                     "PageHeader", "PageFooter"}
 MAX_CHARS = 16000          # bleibt sicher unter 8k Tokens (bge-m3)
-LABEL_PROMPT_VERSION = 1
+LABEL_PROMPT_VERSION = 3
 MAX_LABEL_LENGTH = 120
 MAX_LABEL_EXCERPT_CHARS = 700
 
@@ -326,32 +326,48 @@ def representative_excerpts(texts: list[str], topics: list[int], embeddings: np.
     vectors = embeddings[indices]
     norms = np.linalg.norm(vectors, axis=1)
     nonzero = norms > 0
-    if not np.any(nonzero):
-        return []
-    normalized_vectors = vectors[nonzero] / norms[nonzero, np.newaxis]
-    normalized_indices = np.asarray(indices)[nonzero]
-    centroid = normalized_vectors.mean(axis=0)
-    centroid_norm = np.linalg.norm(centroid)
-    if centroid_norm == 0:
-        return []
-    scores = normalized_vectors @ (centroid / centroid_norm)
-    ranked_indices = normalized_indices[np.argsort(scores)[::-1][:limit]]
+    ranked_indices = np.asarray(indices[:limit])
+    if np.any(nonzero):
+        normalized_vectors = vectors[nonzero] / norms[nonzero, np.newaxis]
+        normalized_indices = np.asarray(indices)[nonzero]
+        centroid = normalized_vectors.mean(axis=0)
+        centroid_norm = np.linalg.norm(centroid)
+        if centroid_norm > 0:
+            scores = normalized_vectors @ (centroid / centroid_norm)
+            ranked_indices = normalized_indices[np.argsort(scores)[::-1][:limit]]
     return [re.sub(r"\s+", " ", texts[index]).strip()[:MAX_LABEL_EXCERPT_CHARS]
-            for index in ranked_indices]
+            for index in ranked_indices if texts[index].strip()]
 
 
 def label_prompt(topic_words: list[str], excerpts: list[str]) -> str:
-    """Build a constrained prompt that prevents unsupported historical claims."""
+    """Build a constrained prompt for concise, evidence-based topic names."""
     evidence = "\n\n".join(
         f"Auszug {index}: {excerpt}" for index, excerpt in enumerate(excerpts, start=1))
     return (
-        "Gib diesem Cluster historischer deutscher Flugblätter einen kurzen, "
-        "sachlichen deutschen Themenbezeichner. Nutze nur die unten stehenden "
-        "Belege. Erfinde keine Akteure, Orte, Daten oder Ereignisse. Benenne "
-        "das Sachthema statt Absender, Stil oder OCR-Fehler. Verwende höchstens "
-        f"{MAX_LABEL_LENGTH} Zeichen. Antworte ausschließlich als JSON-Objekt "
-        'im Format {"label":"..."}.\n\n'
-        f"Schlüsselwörter: {', '.join(topic_words)}\n\n{evidence}")
+        "Du benennst Themen-Cluster historischer deutscher Flugblätter. Erstelle "
+        "für das Cluster einen kurzen, präzisen und sachlichen deutschen Titel, "
+        "der das zentrale Sachthema beschreibt.\n"
+        "Regeln:\n"
+        "- Formuliere einen verständlichen Titel statt einer Liste von Stichwörtern.\n"
+        "- Benenne Anliegen, Konflikt, Forderung oder Gegenstand der Flugblätter; "
+        "nicht Absender, Organisation, Textsorte oder Schreibstil.\n"
+        "- Nutze Schlüsselwörter und Textauszüge gemeinsam. Die Auszüge sind die "
+        "inhaltlichen Belege; Schlüsselwörter sind nur Hinweise.\n"
+        "- Erfinde oder ergänze keine Akteure, Orte, Daten, Ereignisse oder "
+        "Zusammenhänge, die aus den Belegen nicht hervorgehen.\n"
+        "- Vermeide nichtssagende Titel wie „Verschiedenes“ oder „Politik“. "
+        "Wenn die Belege mehrere Aspekte zeigen, wähle einen passenden "
+        "gemeinsamen Oberbegriff.\n"
+        "- Nenne immer ein Thema. Lehne die Aufgabe nicht ab und antworte nicht "
+        "mit „unbekannt“, „unklar“ oder „kein Thema“. Wenn die Belege wenig "
+        "hergeben, formuliere den engsten durch Schlüsselwörter und Auszüge "
+        "gestützten Oberbegriff.\n"
+        "- Ignoriere offensichtliche OCR-Fehler und übernimm sie nicht in den Titel.\n"
+        "- Schreibe knapp und ohne Anführungszeichen; verwende höchstens "
+        f"{MAX_LABEL_LENGTH} Zeichen.\n"
+        'Antworte ausschließlich als JSON-Objekt im Format {"label":"..."}.\n\n'
+        f"Schlüsselwörter: {', '.join(topic_words) or '(keine verfügbar)'}\n\n"
+        f"{evidence or 'Keine repräsentativen Textauszüge verfügbar.'}")
 
 
 def parse_llm_label(content: str) -> str:
@@ -371,16 +387,40 @@ def parse_llm_label(content: str) -> str:
 
 def request_llm_label(client: Any, model: str, topic_words: list[str],
                       excerpts: list[str]) -> str:
-    """Request one validated label from an OpenRouter chat model."""
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0,
-        messages=[{"role": "user", "content": label_prompt(topic_words, excerpts)}],
-    )
-    content = response.choices[0].message.content
-    if not isinstance(content, str):
-        raise ValueError("LLM-Antwort enthält keinen Text")
-    return parse_llm_label(content)
+    """Request a validated label, retrying once if the model misses the format."""
+    from openai import OpenAIError
+
+    prompt = label_prompt(topic_words, excerpts)
+    for attempt in range(2):
+        messages = [{"role": "user", "content": prompt}]
+        if attempt:
+            messages.append({
+                "role": "user",
+                "content": 'Erstelle jetzt einen Titel und gib ausschließlich gültiges '
+                           'JSON im Format {"label":"..."} zurück. Nenne immer ein '
+                           "Thema; bei Unsicherheit den engsten belegten Oberbegriff.",
+            })
+        request = {
+            "model": model,
+            "temperature": 0,
+            "messages": messages,
+        }
+        if not attempt:
+            request["response_format"] = {"type": "json_object"}
+        try:
+            response = client.chat.completions.create(**request)
+            if not response.choices:
+                raise ValueError("LLM-Antwort enthält keine Auswahl")
+            content = response.choices[0].message.content
+            if not isinstance(content, str):
+                raise ValueError("LLM-Antwort enthält keinen Text")
+            return parse_llm_label(content)
+        except (OpenAIError, ValueError) as exc:
+            if attempt:
+                raise
+            log(f"  ! LLM-Label: strukturierte Antwort fehlgeschlagen ({exc}); "
+                "wiederhole ohne JSON-Modus")
+    raise RuntimeError("LLM-Label fehlgeschlagen, obwohl beide Versuche beendet sind")
 
 
 def add_llm_labels(topics_out: list[dict[str, Any]], texts: list[str], topics: list[int],
@@ -394,13 +434,13 @@ def add_llm_labels(topics_out: list[dict[str, Any]], texts: list[str], topics: l
     cached_count = 0
     created_count = 0
     failed_count = 0
+    failed_topics = []
 
     for topic in topics_out:
         excerpts = representative_excerpts(texts, topics, embeddings, topic["id"])
         if not excerpts:
-            log(f"  ! Thema {topic['id']}: keine repräsentativen Texte für LLM-Label")
-            failed_count += 1
-            continue
+            log(f"  ! Thema {topic['id']}: keine repräsentativen Texte; "
+                "LLM-Label nur anhand der Schlüsselwörter")
         cache_key = topic_label_fingerprint(model, topic["top_words"], excerpts)
         if cache_key in cache:
             topic["llm_label"] = cache[cache_key]
@@ -411,6 +451,7 @@ def add_llm_labels(topics_out: list[dict[str, Any]], texts: list[str], topics: l
         except (OpenAIError, ValueError) as exc:
             log(f"  ! Thema {topic['id']}: LLM-Label fehlgeschlagen: {exc}")
             failed_count += 1
+            failed_topics.append(topic["id"])
             continue
         cache[cache_key] = label
         save_label_cache(cache_path, cache)
@@ -419,6 +460,11 @@ def add_llm_labels(topics_out: list[dict[str, Any]], texts: list[str], topics: l
 
     log(f"LLM-Labels ({model}): {created_count} neu, {cached_count} aus Cache, "
         f"{failed_count} fehlgeschlagen")
+    if failed_topics:
+        raise RuntimeError(
+            f"Keine vollständige Themenbenennung möglich; fehlgeschlagen für "
+            f"Themen {', '.join(map(str, failed_topics))}. Erfolgreiche Labels "
+            "sind gecacht; starte den Lauf erneut.")
 
 
 def build_topic_model(args):
@@ -571,8 +617,13 @@ def main():
                                           width=1100, height=40 + 22 * len(topics_out))
     fig.write_html(out_path.with_suffix(".hierarchy.html"), include_plotlyjs="cdn")
 
+    topic_model.visualize_topics().write_html(
+        out_path.with_suffix(".intertopic.html"), include_plotlyjs="cdn")
+    topic_model.visualize_barchart(top_n_topics=15).write_html(
+        out_path.with_suffix(".barchart.html"), include_plotlyjs="cdn")
+
     n_out = sum(t == -1 for t in topics)
-    log(f"-> {out_path.relative_to(REPO_ROOT)}: {len(topics_out)} Themen, "
+    log(f"->  {out_path.relative_to(REPO_ROOT)}: {len(topics_out)} Themen, "
         f"{n_out}/{len(topics)} Flugblätter ohne Thema (Ausreißer)")
     for t in topics_out[:15]:
         log(f"  {t['id']:>3} ({t['count']:>3})  {', '.join(t['top_words'][:6])}")
