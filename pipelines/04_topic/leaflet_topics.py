@@ -60,6 +60,7 @@ SKIP_BLOCK_TYPES = {"Picture", "Figure", "PictureGroup", "FigureGroup",
 MAX_CHARS = 16000          # bleibt sicher unter 8k Tokens (bge-m3)
 LABEL_PROMPT_VERSION = 3
 MAX_LABEL_LENGTH = 120
+MAX_WORD_AMT = 5
 MAX_LABEL_EXCERPT_CHARS = 700
 
 # Bearbeitungsvermerke des Archivs, kein Inhalt der Flugblätter:
@@ -72,7 +73,8 @@ EXTRA_STOPWORDS = [
     "daß", "dass", "wurde", "worden", "sowie", "bzw", "xxx",
     # Allerweltswörter im Hochschulkontext
     "student", "studenten", "studentin", "kommilitone", "universität", "uni",
-    "regensburg", "studentenschaft", "herr",
+    "regensburg", "studentenschaft", "herr", "hochschule", "professor", "interesse",
+    "interessenvertretung",
     # Füllsubstantive
     "zeit", "jahr", "herr", "frage", "seite", "fall", "punkt", "teil", "art",
     "weise", "grund", "beispiel",
@@ -362,9 +364,10 @@ def label_prompt(topic_words: list[str], excerpts: list[str]) -> str:
         "mit „unbekannt“, „unklar“ oder „kein Thema“. Wenn die Belege wenig "
         "hergeben, formuliere den engsten durch Schlüsselwörter und Auszüge "
         "gestützten Oberbegriff.\n"
+        "- Nutze möglichst neutrale und unwertende Formulierungen.\n"
         "- Ignoriere offensichtliche OCR-Fehler und übernimm sie nicht in den Titel.\n"
         "- Schreibe knapp und ohne Anführungszeichen; verwende höchstens "
-        f"{MAX_LABEL_LENGTH} Zeichen.\n"
+        f"{MAX_LABEL_LENGTH} Zeichen und möglichst nur {MAX_WORD_AMT} Wörter.\n"
         'Antworte ausschließlich als JSON-Objekt im Format {"label":"..."}.\n\n'
         f"Schlüsselwörter: {', '.join(topic_words) or '(keine verfügbar)'}\n\n"
         f"{evidence or 'Keine repräsentativen Textauszüge verfügbar.'}")
