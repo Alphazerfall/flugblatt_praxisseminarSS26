@@ -124,3 +124,8 @@ the annotator is part of the save path, their versions coexist
 (`gold/annotations/fw/…`, `gold/annotations/js/…`, …). Build/score each and
 compare page CERs across annotators to sanity-check the guidelines before
 splitting the remaining pages one-per-annotator.
+
+## Further material
+
+- `testkorpus-seiten.csv`: volume and page of each of the 100 test pages, reconstructed afterwards (report, section 3.3).
+- `ocr-modelle-uebersicht.md`: the OCR candidates with benchmarks, licences and sources as of 17.08.2026 (report, section 3.4).
