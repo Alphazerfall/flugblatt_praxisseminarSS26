@@ -366,5 +366,6 @@ Schritt 2 lässt sich als nächstes umsetzen, wenn das Datenmodell hier so träg
 
 1. **Bündel-Dokumente:** Ein AStA-Info mit acht Seiten ist ein Dokument — oder acht? Vorschlag: ein Dokument, `doc_type: "zeitschrift"`, und die Fragestellung entscheidet, ob solche Typen in eine Auswertung eingehen.
 2. **Doppelstücke:** Wenn dasselbe Blatt in zwei Bänden liegt — eigener Record je Exemplar (archivisch korrekt) plus `duplicate_of`? Über `content_hash` automatisch auffindbar.
+   *Stand 28.09.2026:* Ein exakter Hash findet die Fälle nicht, weil die OCR je Exemplar abweicht. Vorschlag und Befund (rund 21 % überzählige Exemplare) in [exemplare.md](exemplare.md): eigener Record je Exemplar, Gruppe über `copy_group`, ein Exemplar `canonical`.
 3. **Personen:** Unterzeichner*innen (`role: "signatory"`) mit aufnehmen oder erst mal weglassen? Datenschutzrechtlich unkritisch bei zeitgeschichtlichem Material, aber Pflegeaufwand.
 4. **1967 (Nr. 001):** Bleibt der Jahrgang draußen (Folie 10), oder kommt er mit `collection_year: 1967` einfach mit ins Korpus und wird bei Bedarf gefiltert? Letzteres kostet nichts und lässt die Entscheidung offen.

@@ -83,21 +83,53 @@ Demokratische Mitte: Hunde, wollt ihr ewig Leben?
 AStA: Urabstimmung für Streik
 ```
 
-Verteilung über unseren Zeitraum:
+Verteilung je Band (Stand 28.09.2026, Segmente ohne Leerseiten laut
+`segments.json`):
 
-| Jahr | Titel im Findmittel | Segmente im Korpus | Abdeckung |
+| Band | Enthält-Titel | Segmente | Abdeckung |
 |---|---|---|---|
-| 1967 | 3 | 3 | hoch |
-| **1968** | **49** | 59 | **~83 %** |
-| **1969** | **132** | 206 | **~64 %** |
-| 1970 | 2 | 109 | 2 % |
-| 1971 | 4 | 262 | 2 % |
-| 1972 | 10 | 665 | 1,5 % |
-| 1973 | 19 | 598 | 3 % |
+| Nr. 001 (1967) | 3 | 3 | 100 % |
+| **Nr. 002 (1968)** | **49** | 59 | **83 %** |
+| **Nr. 003 (1969)** | **132** | 212 | **62 %** |
+| Nr. 004 (1970) | 2 | 187 | 1 % |
+| Nr. 005 (1971) | 4 | 262 | 2 % |
+| Nr. 006 (1972) | 2 | 200 | 1 % |
+| Nr. 007 (1972, RCDS) | 4 | 70 | 6 % |
+| Nr. 008 (1972, AStA) | 1 | 163 | 1 % |
+| Nr. 009 (1972) | 3 | 232 | 1 % |
+| Nr. 010 (1973, RCDS) | 3 | 75 | 4 % |
+| Nr. 011 (1973, DF) | 0 | 92 | 0 % |
+| Nr. 012 (1973) | 1 | 129 | 1 % |
+| Nr. 013 (1973, AStA) | 1 | 132 | 1 % |
+| Nr. 014 (1973) | 13 | 170 | 8 % |
+| Vz 15 (1973, nicht digitalisiert) | 1 | – | – |
 
 **1968 und 1969 sind nahezu erschlossen, der Rest praktisch gar nicht.** Das Feld beginnt überall mit „u.a.:" — es ist erklärtermaßen eine Auswahl, keine Vollständigkeitsangabe.
 
 Für uns heißt das: Das teuer geplante Gold-Set (50–60 handannotierte Segmente, zwei bis drei Stunden zu zweit) **existiert bereits** — mit 181 Einträgen für 1968/69, geschrieben von Archivarinnen am physischen Original. Das ist qualitativ besser als alles, was wir in einem Nachmittag herstellen könnten.
+
+**Rollen der Bände für die Metadaten-Extraktion:**
+
+- **Nr. 002** ist Entwicklungsband; der Prompt wurde an ihm abgestimmt, seine
+  49 Titel taugen deshalb nur eingeschränkt für eine unabhängige Bewertung.
+- **Nr. 003** ist der einzige große Band mit externer Referenz und damit der
+  Testband für Extraktion (`eval_metadata.py`) und Segmentierung
+  (`align_findmittel.py`).
+- **Ab 1970** gibt es praktisch keine Referenz; dort bleiben Belegprüfung,
+  Stichproben und die Befunde in `metadaten-befunde.md`.
+
+**Noch nicht ausgeschöpft (Stand 28.09.2026):**
+
+- `abgleich.tsv` ordnet 16 Segmenten mehrere Archivtitel zu, 14 davon in
+  Nr. 003 (am deutlichsten Segment 137, S. 192–207, mit fünf Titeln). Das sind
+  Kandidaten für fehlende Schnitte, die noch nicht in
+  `segmentierungsfehler.md` stehen.
+- Für Nr. 003 gibt es noch keinen Lauf mit dem aktuellen Prompt, also auch
+  keine Messung gegen die 132 Titel.
+- Einige Vermerke nennen Personen statt Gruppen („H. Brammerts: …“, „Rolf
+  Breuer: …“). Damit ließe sich auch die Rolle „Unterzeichner“ prüfen;
+  `eval_metadata.py` unterscheidet das bisher nicht.
+- Die App (UR Leaflet Archive) zeigt die Archivtitel noch nicht an.
 
 ### Zuordnungstest
 
