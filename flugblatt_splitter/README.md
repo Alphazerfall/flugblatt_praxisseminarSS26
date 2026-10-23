@@ -7,6 +7,8 @@ segmentation JSON. The cuts themselves are always set by hand; a review mode
 walks through suspicious boundaries found by `pipelines/01_pdf/check_boundaries.py`
 (see "Prüfmodus" below).
 
+![Cut view: pages grouped into segments, preview on the right](screenshots/splitter-schneiden.png)
+
 ## Project structure
 
 ```
@@ -80,6 +82,8 @@ refresh is enough to see those.
    segmentation for the current PDF.
 
 ## Modus „Grenzen prüfen“: verdächtige Grenzen abarbeiten
+
+![Prüfmodus: Leiste mit Verdachtsfällen unter der Topbar](screenshots/splitter-grenzen-pruefen.png)
 
 Oben links schaltet man zwischen **Schneiden** (wie bisher, ohne
 Markierungen) und **Grenzen prüfen** um; die Wahl bleibt gespeichert. Im

@@ -5,6 +5,8 @@ PaddleOCR, GLM-OCR, ...) against the source PDF: page on the left with
 detected boxes overlaid, extracted content on the right, numbered and synced
 by hover/click — same idea as Datalab's own playground UI.
 
+![Single model: page with boxes, blocks with types](screenshots/ocr-viewer-einzeln.png)
+
 The **Vergleichsmodus** dropdown switches between four ways of comparing the
 current document's models, all sharing the same document/page navigation:
 - **Einzeln** — one model, the layout described above.
@@ -36,6 +38,10 @@ current document's models, all sharing the same document/page navigation:
   textareas for post-editing Datalab's text into a gold standard. See "Correct
   mode" below.
 
+![Side by side: Datalab above, Mistral OCR 4 below](screenshots/ocr-viewer-nebeneinander.png)
+
+![Structure diff: Datalab against Mistral OCR 4, differences in red and green](screenshots/ocr-viewer-struktur-diff.png)
+
 Model names in the dropdowns are prettified for readability (e.g. "Datalab
 API (JSON)" instead of the raw output folder name "jsonDatalab") — see
 `MODEL_DISPLAY_NAMES` in `app.js`. The underlying folder/file name is still
@@ -63,6 +69,8 @@ output-directory name (e.g. "jsonMistral", "MinerU") so it's obvious which
 folder on disk a given entry came from.
 
 ## Correct mode (gold standard)
+
+![Correct mode: status per block, raw OCR below each text field](screenshots/ocr-viewer-goldstandard.png)
 
 Correct mode produces the gold transcription we measure Datalab's CER against
 (see [../pipelines/03_eval/](../pipelines/03_eval/)). Pick **Korrigieren

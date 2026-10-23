@@ -17,10 +17,10 @@ const MODEL_DISPLAY_NAMES = {
   jsonQwen: "Qwen3-VL",
   jsonClaude: "Claude Sonnet 5",
   jsonMistral: "Mistral OCR 4",
-  jsonGemini: "Gemini 2.5 Pro",
+  jsonGemini: "Gemini 3.5 Flash",
   markdownMistral: "Mistral OCR 4 (Markdown)",
-  PaddleOCR: "PaddleOCR-VL-1.5",
-  MinerU: "MinerU2.5-Pro",
+  PaddleOCR: "PaddleOCR (PP-OCR pipeline)",
+  MinerU: "MinerU 3.4.2 (pipeline)",
 };
 
 function displayNameFor(model) {
