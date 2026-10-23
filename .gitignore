@@ -25,11 +25,18 @@ Thumbs.db
 # Data
 data/
 
-# Claude Code (lokale Berechtigungen)
-.claude/settings.json
+# Claude Code (lokal)
+.claude/
+.agents/
+skills-lock.json
 
 # Notizen
 /seg*.txt
+/Handoff.md
+/notebooks/
+
+# Dokumentation (lokal, getrackt bleibt docs/korpus)
+/docs/
 
 # Screenshots/Snapshots aus UI-Tests
 /output/
