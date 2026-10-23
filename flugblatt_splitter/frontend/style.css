@@ -411,6 +411,156 @@ body.metadata-hidden .segment-extracted-meta {
   border-color: transparent transparent var(--confirmed-color) transparent;
 }
 
+/* --- Prüfmodus (segmentgrenzen.tsv): Leiste unter der Topbar, Markierungen
+   an Vorschaubildern, Segmentboxen und Seiten. Farbe je Stufe: sicher rot,
+   wahrscheinlich bernstein, prüfen grau; erledigte Fälle blass. --- */
+
+.mode-switch { display: inline-flex; }
+.mode-switch button { border-radius: 0; }
+.mode-switch button:first-child { border-radius: 4px 0 0 4px; }
+.mode-switch button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.mode-switch button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.stufe-sicher { --stufe: var(--confirmed-color); }
+.stufe-wahrscheinlich { --stufe: var(--warn-amber); }
+.stufe-prüfen { --stufe: var(--muted); }
+
+.review-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "nav case actions" "filter filter filter";
+  align-items: center;
+  gap: 6px 16px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--warn-amber) 7%, var(--panel));
+  border-bottom: 1px solid var(--border);
+}
+
+.review-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
+.review-position { font-weight: 600; white-space: nowrap; min-width: 12ch; text-align: center; }
+.review-case { grid-area: case; min-width: 0; font-size: 12px; }
+.review-actions { grid-area: actions; display: flex; gap: 6px; }
+.review-filter {
+  grid-area: filter;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.review-filter select { min-width: 0; font-size: 11px; padding: 2px 4px; }
+.review-keys { margin-left: auto; }
+
+.review-remaining {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--text);
+}
+
+.review-remaining .review-chip {
+  background: none;
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
+.review-remaining .review-chip:hover { background: color-mix(in srgb, var(--stufe) 15%, transparent); }
+
+.review-proposal { color: var(--accent); font-weight: 600; }
+.review-signals { color: var(--text); }
+.review-beleg {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.review-stufe {
+  font-size: 10.5px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid var(--stufe);
+  color: var(--stufe);
+}
+
+.review-actions { align-items: center; }
+.review-decided {
+  color: var(--confirm-green);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.review-apply {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 10px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* vorgeschlagener Schnitt: Ecke bernstein; vermutlich überflüssiger Schnitt:
+   rote Ecke mit bernsteinfarbenem Rand */
+.preview-thumb-cut.suggest-add {
+  border-color: transparent transparent var(--warn-amber) transparent;
+}
+.preview-thumb-cut.suggest-remove {
+  filter: drop-shadow(0 0 2px var(--warn-amber)) drop-shadow(0 0 2px var(--warn-amber));
+}
+
+.review-flag {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--stufe);
+  color: #fff;
+  cursor: pointer;
+}
+
+.review-chip {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--stufe);
+  color: var(--stufe);
+  cursor: pointer;
+}
+
+.review-banner {
+  margin: 4px 0 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-left: 4px solid var(--stufe);
+  background: color-mix(in srgb, var(--stufe) 12%, transparent);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.review-banner span { color: var(--muted); }
+
+.review-flag.done, .review-chip.done, .review-banner.done { opacity: 0.35; }
+.review-flag.current, .review-chip.current { outline: 2px solid var(--current-color); outline-offset: 1px; }
+.review-banner.current { box-shadow: 0 0 0 2px var(--current-color); }
+
 /* --- Right half: detailed page-by-page view --- */
 
 #pages-panel {

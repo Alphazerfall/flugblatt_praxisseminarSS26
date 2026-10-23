@@ -18,8 +18,8 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from . import pdf_service, segmentation
-from .config import DATA_ROOT, ORGANIZATIONS_PATH, THUMBNAIL_DPI
-from .models import SaveSegmentationRequest
+from .config import BOUNDARIES_PATH, DATA_ROOT, ORGANIZATIONS_PATH, THUMBNAIL_DPI
+from .models import ReviewDecisionRequest, SaveSegmentationRequest
 
 app = FastAPI(title="Flugblatt Splitter")
 
@@ -90,6 +90,23 @@ def load_metadata_endpoint(pdf: str):
         return segmentation.load_metadata(p)
     except FileNotFoundError:
         raise HTTPException(404, "no extracted metadata for this pdf yet")
+
+
+@app.get("/api/boundaries")
+def get_boundaries(pdf: str):
+    """Prüfliste verdächtiger Grenzen für diesen Band samt bisherigen Entscheidungen."""
+    p = _resolve_pdf(pdf)
+    return {"items": segmentation.load_boundary_candidates(p, BOUNDARIES_PATH),
+            "decisions": segmentation.load_review(p)}
+
+
+@app.post("/api/boundaries/review")
+def review_boundary(req: ReviewDecisionRequest):
+    p = _resolve_pdf(req.pdf)
+    try:
+        return {"decisions": segmentation.save_review_decision(p, req.key, req.decision)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/organizations/load")

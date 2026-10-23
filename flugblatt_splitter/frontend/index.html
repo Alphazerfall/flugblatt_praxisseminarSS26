@@ -22,6 +22,10 @@
       <option value="">– auswählen –</option>
     </select>
   </div>
+  <div class="mode-switch" role="group" aria-label="Modus">
+    <button type="button" data-mode="split" title="Seiten durchgehen und Schnitte setzen">Schneiden</button>
+    <button type="button" data-mode="review" title="Verdächtige Grenzen aus segmentgrenzen.tsv abarbeiten">Grenzen prüfen</button>
+  </div>
   <button id="btn-save" type="button" disabled>JSON speichern</button>
   <button id="btn-load-json" type="button" disabled>JSON laden</button>
   <span id="doc-summary" class="chip"></span>
@@ -33,6 +37,34 @@
   </div>
   <div id="status" class="status"></div>
 </header>
+
+<!-- Prüfmodus für docs/korpus/segmentgrenzen.tsv (pipelines/01_pdf/check_boundaries.py) -->
+<section id="review-bar" class="review-bar" hidden>
+  <div class="review-nav">
+    <button type="button" id="review-prev" title="Voriger Fall, auch ein schon entschiedener">◀</button>
+    <span id="review-position" class="review-position"></span>
+    <button type="button" id="review-next" title="Nächster offener Fall">▶</button>
+  </div>
+  <div id="review-case" class="review-case"></div>
+  <div class="review-actions">
+    <span id="review-decided" class="review-decided" hidden></span>
+    <button type="button" id="review-apply" class="review-apply" title="Vorschlag übernehmen, speichern, weiter"></button>
+    <button type="button" id="review-reject" title="Vorschlag ablehnen, weiter"></button>
+    <button type="button" id="review-unclear" title="Richtlinienfrage, weiter"></button>
+    <button type="button" id="review-undo" title="Entscheidung zu diesem Fall zurücknehmen">Zurücknehmen</button>
+  </div>
+  <div class="review-filter">
+    <select id="review-filter" title="Welche Fälle">
+      <option value="sicher,wahrscheinlich">sicher + wahrscheinlich</option>
+      <option value="sicher,wahrscheinlich,prüfen">alle Stufen</option>
+      <option value="sicher">nur sicher</option>
+      <option value="prüfen">nur prüfen</option>
+    </select>
+    <label><input type="checkbox" id="review-open-only" checked> nur offene</label>
+    <span id="review-remaining" class="review-remaining" hidden></span>
+    <span class="review-keys">Schnitt links von Hand setzen erledigt den Fall auch</span>
+  </div>
+</section>
 
 <main id="app">
   <section id="preview-panel" class="pane">

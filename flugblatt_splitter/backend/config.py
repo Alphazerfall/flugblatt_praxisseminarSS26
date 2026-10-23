@@ -11,6 +11,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = REPO_ROOT / "data"
 ORGANIZATIONS_PATH = REPO_ROOT / "docs" / "korpus" / "findmittel" / "organizations.draft.json"
+# Prüfliste verdächtiger Segmentgrenzen aus pipelines/01_pdf/check_boundaries.py
+BOUNDARIES_PATH = REPO_ROOT / "docs" / "korpus" / "segmentgrenzen.tsv"
 
 # --- Rendering --------------------------------------------------------------
 THUMBNAIL_DPI = 110  # overridable per-request via ?dpi= (the frontend uses this

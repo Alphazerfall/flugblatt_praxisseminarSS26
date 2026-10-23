@@ -19,3 +19,9 @@ class Segment(BaseModel):
 class SaveSegmentationRequest(BaseModel):
     pdf: str
     segments: list[Segment]
+
+
+class ReviewDecisionRequest(BaseModel):
+    pdf: str
+    key: str        # "<art>:<seiten>", wie von /api/boundaries geliefert
+    decision: str   # "übernommen" | "abgelehnt" | "unklar" | "" (zurücknehmen)

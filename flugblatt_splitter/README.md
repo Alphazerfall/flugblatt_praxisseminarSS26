@@ -3,8 +3,9 @@
 A local tool for manually splitting a large yearly PDF of political flyers
 ("Flugblätter") into individual documents. Renders every page as a thumbnail
 and lets you click through them to mark and confirm cuts, then saves a
-segmentation JSON. Purely manual and visual — no text extraction, no AI, no
-external dependencies beyond rendering the PDF itself.
+segmentation JSON. The cuts themselves are always set by hand; a review mode
+walks through suspicious boundaries found by `pipelines/01_pdf/check_boundaries.py`
+(see "Prüfmodus" below).
 
 ## Project structure
 
@@ -77,6 +78,50 @@ refresh is enough to see those.
 6. Click **"Save JSON"** to save the segmentation next to the source PDF as
    `<pdf-name>.segments.json`. **"Load JSON"** reloads a previously saved
    segmentation for the current PDF.
+
+## Modus „Grenzen prüfen“: verdächtige Grenzen abarbeiten
+
+Oben links schaltet man zwischen **Schneiden** (wie bisher, ohne
+Markierungen) und **Grenzen prüfen** um; die Wahl bleibt gespeichert. Im
+Prüfmodus zeigt eine Leiste unter der Topbar die Verdachtsfälle des Bandes aus
+`docs/korpus/segmentgrenzen.tsv` (erzeugt von
+`python pipelines/01_pdf/check_boundaries.py`):
+
+| Bedienelement | Wirkung |
+|---|---|
+| ▶ | nächster offener Fall; springt so, dass die Seite vor dem Übergang oben steht und die fragliche Seite darunter |
+| ◀ | voriger Fall, auch ein schon entschiedener (zum Korrigieren) |
+| Vorschlag, z. B. „Schnitt nach S. 215 setzen“ | übernehmen: **speichert sofort** und geht weiter |
+| „Keinen Schnitt setzen“ bzw. „Schnitt behalten“ | Vorschlag ablehnen, weiter |
+| „Unklar“ | Richtlinienfrage, weiter |
+| „Zurücknehmen“ | Entscheidung zum aktuellen Fall zurücknehmen |
+
+Buchstaben-Kürzel gibt es bewusst nicht, damit man ungestört Notizen tippen
+kann; Pfeiltasten, <kbd>Enter</kbd> und <kbd>Strg</kbd>+<kbd>S</kbd>
+funktionieren wie bisher. Die Zählung „Fall 3 von 13 · 10 offen“ bezieht sich
+auf die gewählten Stufen und bleibt beim Abarbeiten stabil.
+
+- **Markierungen:** Eine bernsteinfarbene Ecke an einer Vorschau schlägt einen
+  Schnitt nach dieser Seite vor; eine leuchtende rote Ecke ist ein vermutlich
+  überflüssiger Schnitt. Das Fähnchen (✂? bzw. ⇅?) sitzt auf der Seite, um deren
+  Anfang es geht; Segment-Hinweise (Findmittel, „enthält anderes Blatt“) stehen
+  als Chip im Kopf der Segmentbox. In der großen Ansicht steht der Beleg direkt
+  über der Seite. Farbe je Stufe: rot sicher, bernstein wahrscheinlich, grau
+  prüfen; Erledigtes wird blass.
+- **Filter:** Standard sind die Stufen „sicher“ und „wahrscheinlich“, nur
+  offene Fälle.
+- **Von Hand korrigieren** geht genauso: Wer im Prüfmodus links den
+  vorgeschlagenen Schnitt setzt oder entfernt (bei Segment-Hinweisen:
+  irgendeinen Schnitt innerhalb des Segments), erledigt den Fall. Er wird als
+  „übernommen“ festgehalten, die Segmentierung gespeichert und die Leiste
+  springt zum nächsten Fall; wird der Schnitt wieder zurückgenommen, auch die
+  Entscheidung. Bei Segment-Hinweisen ist das der einzige Weg, denn das
+  Skript weiß nicht, an welcher Seite der Schnitt fehlt.
+- **Entscheidungen** landen in `<pdf-stem>.boundary_review.json` neben dem
+  PDF. Sie sind zugleich ein geprüfter Datensatz, an dem sich
+  `check_boundaries.py` messen lässt.
+- Nach Korrekturen in einem Band: Metadaten mit `--fresh` neu extrahieren
+  (siehe `docs/korpus/segmentierungsfehler.md`).
 
 ## Segmentation JSON format
 
