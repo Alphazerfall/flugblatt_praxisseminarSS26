@@ -48,7 +48,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prompt_v2 import RESPONSE_SCHEMA as SCHEMA_V2, build_prompt, check_grounding  # noqa: E402
+from prompt_v2 import (RESPONSE_SCHEMA as SCHEMA_V2, build_prompt, check_grounding,  # noqa: E402
+                       missing_signatories)
+import prompt_v3  # noqa: E402
+
+# v2 = gewachsener Regelprompt, v3 = schlanker Gegenentwurf; gleiches Schema
+BUILD_PROMPT = {"v2": build_prompt, "v3": prompt_v3.build_prompt}
+import org_match  # noqa: E402
 
 DEFAULT_MODELS = {"gemini": "gemini-3.5-flash", "openrouter": "google/gemini-2.5-flash"}
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -148,6 +154,122 @@ def html_to_text(fragment_html):
 
 
 PICTURE_LABEL = "Abbildung, maschinell beschrieben - nicht Text des Blatts"
+STAMP_LABEL = "Archivvermerk - kein Datum des Blatts"
+
+# Eingangsstempel der Bibliothek ("UB Regensburg eingelaufen am: 1. FEB. 1973")
+# und Ablagevermerke ("2, Ablage 12043", "z. K."). Das Stempeldatum ist das
+# Eingangsdatum, oft mit falsch gelesenem Jahr.
+STAMP_DATE = (r"\d{1,2}\s*\.?\s*(?:JAN|FEB|MRZ|MÄR|MÄRZ|APR|MAI|JUNI?|JULI?|AUG|"
+              r"SEPT?|OKT|NOV|DEZ)\.?\s*19\d\d")
+STAMP_INLINE = re.compile(
+    rf"(?:eingeliefert|eingegangen|eingetroffen|eingelaufen)\s+am\s*:?\s*-?\s*{STAMP_DATE}"
+    rf"|\bAblage\s*[\d\s()]{{2,8}}(?:{STAMP_DATE})?|\bz\.\s?K\.")
+STAMP_ONLY = re.compile(rf"^\W*(?:am\s*:?\s*-?\s*)?{STAMP_DATE}\W*$")
+STAMP_PICTURE = re.compile(
+    r"stamp|stempel|eingeliefert|eingegangen|eingetroffen|eingelaufen", re.I)
+
+
+def is_stamp_block(block_type, text):
+    """Ganzer Block ist ein Archivvermerk: ein als Bild erkannter Stempel oder
+    ein kurzer Textblock, der nur aus dem Stempeldatum besteht."""
+    if block_type == "Picture":
+        return bool(STAMP_PICTURE.search(text))
+    return bool(STAMP_ONLY.match(" ".join(text.split())))
+
+
+STAMP_DATE_PARTS = re.compile(
+    r"(\d{1,2})\s*\.?\s*(JAN|FEB|MRZ|MÄR|MAR|APR|MAI|JUN|JUL|AUG|SEP|OKT|NOV|DEZ)[A-ZÄ]*\.?\s*(19\d\d)",
+    re.I)
+MONTH_NO = {"JAN": 1, "FEB": 2, "MRZ": 3, "MÄR": 3, "MAR": 3, "APR": 4, "MAI": 5, "JUN": 6,
+            "JUL": 7, "AUG": 8, "SEP": 9, "OKT": 10, "NOV": 11, "DEZ": 12}
+
+
+def stamp_dates(page_blocks, start_page, end_page):
+    """Daten der Eingangsstempel eines Segments: [(iso, block_id, Stempeltext)].
+
+    Gelesen ohne Sprachmodell aus Stempelblöcken, Stempel-Bildbeschreibungen
+    und Stempelvermerken im Text. Ablagevermerke ohne Datum ("Ablage 12043")
+    ergeben nichts."""
+    found = []
+    for p in range(start_page, end_page + 1):
+        for block_id, block_type, text in page_blocks.get(p, []):
+            if not text:
+                continue
+            if is_stamp_block(block_type, text):
+                candidates = [text]
+            elif block_type != "Picture":
+                candidates = [m.group(0) for m in STAMP_INLINE.finditer(text)]
+            else:
+                continue
+            for cand in candidates:
+                m = STAMP_DATE_PARTS.search(cand)
+                if not m:
+                    continue
+                day, month, year = int(m.group(1)), MONTH_NO[m.group(2).upper()[:3]], int(m.group(3))
+                try:
+                    iso = datetime(year, month, day).date().isoformat()
+                except ValueError:
+                    continue
+                found.append((iso, block_id, " ".join(cand.split())))
+    return found
+
+
+def add_received_date(record, stamps, volume_year):
+    """Eingangsdatum aus dem Stempel als eigenes Feld - der Tag, an dem das Blatt
+    ins Archiv kam, und damit ein "spätestens am" für das Blatt.
+
+    Das Jahr ist die Schwachstelle der OCR (8 statt 0 oder 3: "22. JUNI 1978"
+    im Band 1970). Passt es nicht zum Jahrgang (±1), wird es nicht korrigiert,
+    sondern als unsicher markiert. Hat das Modell trotz Prompt-Regel das
+    Stempeldatum als Datum des Blatts genommen (Beleg aus einem Stempelblock),
+    wird es dorthin verschoben statt gelöscht."""
+    if not stamps:
+        return record
+    volume_year = int(volume_year) if str(volume_year or "").isdigit() else None
+    plausible = [s for s in stamps if abs(int(s[0][:4]) - volume_year) <= 1] if volume_year else stamps
+    iso, block_id, text = min(plausible or stamps)
+    record.update(received_date=iso, received_evidence=text, received_blocks=[block_id],
+                  received_year_uncertain=not plausible)
+
+    stamp_ids = {s[1] for s in stamps}
+    evidence = record.get("date_evidence") or ""
+    from_stamp = bool(set(record.get("date_blocks") or []) & stamp_ids) or (
+        evidence and any(evidence in s[2] for s in stamps))
+    if record.get("date_iso") and from_stamp:
+        record["_date_from_stamp"] = {k: record.get(k) for k in
+                                      ("date_evidence", "date_blocks", "date_text", "date_iso", "date_type")}
+        record.update(date_evidence="", date_blocks=[], date_text="", date_iso="", date_type="undated")
+    return record
+
+
+MONEY = re.compile(r"\bDM\s*[\d.,]|[\d.,]+\s*DM\b|satz\s+DM\b", re.I)
+# Bildnachweise und Gestaltungsangaben nennen keine Herausgeber
+# ("FOTOS: FOTOGRUPPE D. MSB SPARTAKUS", "GRAPHIK + DESIGN: ...")
+CREDITS = re.compile(r"(?i)^\W*(fotos?|fotografie|graphik|grafik|design|zeichnung|druck|satz)\b")
+
+
+def edge_orgs_without_issuer(record, page_blocks, seg, registry):
+    """Kein Herausgeber im Ergebnis, aber in einem kurzen Block am Anfang oder
+    Ende des Blatts steht eine Gruppe der Normdatei ("DEMOKRATISCHE MITTE",
+    "RCDS - RCDS - RCDS", "Der Rektor teilt mit:")? -> [(block_id, Text)].
+
+    Nur kurze Blöcke (Kopf, Kopfleiste, Schlusszeile): Im Fließtext wird eine
+    Gruppe meist nur erwähnt. Geldbeträge ("DM 1.500") sind keine Gruppe."""
+    if any(i.get("role") == "issuer" for i in record.get("issuers") or []):
+        return []
+    from prompt_v2 import unspace
+    blocks = [(bid, unspace(" ".join(text.split())))
+              for p in range(seg["start_page"], seg["end_page"] + 1)
+              for bid, btype, text in page_blocks.get(p, [])
+              if text and btype != "Picture" and not is_stamp_block(btype, text)]
+    found, seen = [], set()
+    for bid, text in blocks[:3] + blocks[-3:]:
+        if len(text) > 70 or MONEY.search(text) or CREDITS.search(text) or bid in seen:
+            continue
+        if org_match.resolve(text, registry):
+            found.append((bid, text))
+            seen.add(bid)
+    return found
 
 
 def block_text(block):
@@ -178,6 +300,8 @@ def segment_texts(page_blocks, start_page, end_page):
 
     Bildbeschreibungen kommen von Datalabs Bildmodell, nicht vom Flugblatt. Das
     Modell sieht sie ausdrücklich als solche markiert; als Beleg taugen sie nicht.
+    Archivvermerke ebenso: ganze Stempelblöcke werden markiert, Vermerke
+    innerhalb eines Textblocks durch "[Archivvermerk]" ersetzt.
     """
     marked, plain, blocks = [], [], {}
     for p in range(start_page, end_page + 1):
@@ -185,6 +309,11 @@ def segment_texts(page_blocks, start_page, end_page):
         for block_id, block_type, text in page_blocks.get(p, []):
             if not text:
                 continue
+            if is_stamp_block(block_type, text):
+                m_lines.append(f"[{block_id}] [{STAMP_LABEL}: {' '.join(text.split())}]")
+                continue
+            if block_type != "Picture":
+                text = STAMP_INLINE.sub("[Archivvermerk]", text)
             if block_type == "Picture":
                 m_lines.append(f"[{block_id}] [{PICTURE_LABEL}: {' '.join(text.split())}]")
                 continue
@@ -326,15 +455,17 @@ def parse_results(raw):
 
 
 def extract_batch(client, backend, model, year, batch, prompt_version, known_orgs, page_counts,
-                  state, page_ranges=None):
-    """batch: Liste von (segment_id, text). -> {segment_id: record}"""
+                  state, page_ranges=None, hints=None):
+    """batch: Liste von (segment_id, text). -> {segment_id: record}
+    hints: {segment_id: Hinweis} der maschinellen Prüfung (nur bei der Nachfrage)."""
     if prompt_version == "v1":
         body = "\n\n".join(f"=== segment {sid} ===\n{txt}" for sid, txt in batch)
         prompt_text = PROMPT_V1 + f"Collection year: {year}\n\n{body}"
         schema = SCHEMA_V1
     else:
-        prompt_text = build_prompt(year, batch, known_orgs=known_orgs, page_counts=page_counts,
-                                   page_ranges=page_ranges)
+        prompt_text = BUILD_PROMPT[prompt_version](year, batch, known_orgs=known_orgs,
+                                                   page_counts=page_counts, page_ranges=page_ranges,
+                                                   hints=hints)
         schema = SCHEMA_V2
 
     last = None
@@ -360,6 +491,37 @@ def extract_batch(client, backend, model, year, batch, prompt_version, known_org
                 f"neuer Versuch in {wait:.0f}s")
             time.sleep(wait)
     raise RuntimeError(f"Batch nach {MAX_RETRIES} Versuchen aufgegeben: {last}")
+
+
+def normalize_record(record):
+    """Bereinigt zwei Widersprüche, die das Modell gelegentlich liefert:
+
+    - date_type "undated" mit Datumstext, meist das Datum eines im Text nur
+      erwähnten Ereignisses ("Am 20. November veranstaltete der AStA ...").
+      Das Datum wird geleert, der Originaltext bleibt in "_date_dropped" und
+      wird im Log gemeldet: Manchmal ist nicht das Datum falsch, sondern die
+      Art (Veranstaltungsdatum als "undated").
+    - dieselbe Person oder Organisation mehrfach in derselben Rolle; die
+      Belegblöcke werden zusammengeführt. Einträge ohne Namen fallen weg.
+    """
+    if record.get("date_type") == "undated" and record.get("date_text"):
+        record["_date_dropped"] = record["date_text"]
+        record.update(date_text="", date_iso="", date_evidence="", date_blocks=[])
+
+    merged = {}
+    for iss in record.get("issuers") or []:
+        if not (iss.get("surface") or "").strip():
+            continue
+        key = (iss.get("surface", "").strip().lower(), iss.get("role"),
+               (iss.get("function") or "").strip(), (iss.get("marker") or "").strip())
+        if key in merged:
+            blocks = merged[key].setdefault("blocks", [])
+            blocks += [b for b in iss.get("blocks") or [] if b not in blocks]
+        else:
+            merged[key] = dict(iss)
+    if record.get("issuers"):
+        record["issuers"] = list(merged.values())
+    return record
 
 
 def cited_block_ids(record):
@@ -461,8 +623,9 @@ def parse_args():
                    help=f"Modell-ID; Standard je Backend: {DEFAULT_MODELS}")
     p.add_argument("--tag", default=None,
                    help="Kennung im Dateinamen (Standard: <prompt>.<modell>) - trennt Vergleichsläufe")
-    p.add_argument("--prompt", choices=["v1", "v2"], default="v2",
-                   help="Prompt-Fassung (Standard: v2). v1 nur noch zum Vergleich.")
+    p.add_argument("--prompt", choices=["v1", "v2", "v3"], default="v2",
+                   help="Prompt-Fassung (Standard: v2). v3 = schlanker Gegenentwurf "
+                        "(prompt_v3.py), v1 nur noch zum Vergleich.")
     p.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE, metavar="N",
                    help=f"Segmente je Request - gegen die Tageskontingente zählt die Zahl der "
                         f"Requests, nicht die Tokens (Standard: {DEFAULT_BATCH_SIZE})")
@@ -505,7 +668,7 @@ if __name__ == "__main__":
         segments = segments[:args.limit]
     page_blocks = load_page_blocks(ocr_json_path)
     year = guess_year(pdf_path)
-    known_orgs = load_known_orgs(args.organizations) if args.prompt == "v2" else []
+    known_orgs = load_known_orgs(args.organizations) if args.prompt != "v1" else []
     empty = EMPTY_V1 if args.prompt == "v1" else EMPTY_V2
 
     out_path = args.output or pdf_path.with_name(f"{pdf_path.stem}.metadata.{tag}.json")
@@ -530,7 +693,7 @@ if __name__ == "__main__":
         marked, plain_texts[sid], seg_blocks[sid] = segment_texts(
             page_blocks, seg["start_page"], seg["end_page"])
         # v1 kennt keine Blockkennungen und bekommt den Text ohne sie
-        model_texts[sid] = marked if args.prompt == "v2" else plain_texts[sid]
+        model_texts[sid] = marked if args.prompt != "v1" else plain_texts[sid]
         page_counts[sid] = seg["end_page"] - seg["start_page"] + 1
         page_ranges[sid] = (seg["start_page"], seg["end_page"])
         if sid in done:
@@ -583,24 +746,48 @@ if __name__ == "__main__":
     # Die ursprünglichen fremden Kennungen bleiben als "_foreign_blocks" im
     # Record, weil sie auf eine falsche Segmentgrenze hinweisen können (siehe
     # segmentation_hints).
+    # Ebenso Segmente, deren Verantwortlich-Zeile Personen nennt, die im
+    # Ergebnis fehlen: Im großen Batch übersieht das Modell die letzte Zeile
+    # eines Blatts leichter.
+    # Ebenso Segmente ohne Herausgeber, bei denen im Kopf oder am Ende eine
+    # Gruppe der Normdatei steht ("DEMOKRATISCHE MITTE", "RCDS - RCDS - RCDS").
+    # Dort bekommt die Nachfrage einen neutralen Hinweis mit; das Modell
+    # entscheidet mit Beleg, ob die Gruppe herausgibt oder nur erwähnt wird.
     seg_by_id = {s["id"]: s for s in segments}
-    if args.prompt == "v2":
+    registry_path = args.organizations or org_match.DEFAULT_REGISTRY
+    registry = org_match.load_registry(registry_path) if registry_path.is_file() else []
+    if args.prompt != "v1":
         retry = []
         for sid, rec in done.items():
             s = seg_by_id.get(sid)
-            if not s or rec.get("_foreign_blocks") or rec.get("_retried_missing"):
+            if not s:
                 continue
-            foreign = foreign_block_ids(rec, s["start_page"], s["end_page"])
-            if foreign or rec.get("_missing"):
-                retry.append((sid, foreign))
+            asked = rec.get("_foreign_blocks") or rec.get("_retried_missing")
+            foreign = [] if asked else foreign_block_ids(rec, s["start_page"], s["end_page"])
+            unsigned = ([] if rec.get("_retried_signatory")
+                        else missing_signatories(rec, plain_texts.get(sid, "")))
+            edge = ([] if rec.get("_retried_issuer") or not registry
+                    else edge_orgs_without_issuer(rec, page_blocks, s, registry))
+            if foreign or (rec.get("_missing") and not asked) or unsigned or edge:
+                retry.append((sid, foreign, unsigned, edge))
         if retry:
-            log(f"Nachfrage: {len(retry)} Segment(e) mit fremden Kennungen oder ohne "
-                f"Ergebnis werden einzeln neu angefragt.")
-        for sid, foreign in retry:
+            log(f"Nachfrage: {len(retry)} Segment(e) mit fremden Kennungen, fehlenden "
+                f"Unterzeichnern/Herausgebern oder ohne Ergebnis werden einzeln neu angefragt.")
+        for sid, foreign, unsigned, edge in retry:
+            hint = []
+            if unsigned:
+                hint.append(f"Die Verantwortlich-Zeile nennt {', '.join(unsigned)} - "
+                            "fehlen diese Personen als signatory?")
+            if edge:
+                where = "; ".join(f"„{text}“ (Block {bid})" for bid, text in edge)
+                hint.append(f"Am Anfang oder Ende des Blatts steht {where}. Prüfe, ob diese Gruppe "
+                            "das Blatt herausgibt (issuer) oder nur erwähnt, zitiert oder "
+                            "angesprochen wird.")
             try:
                 meta = extract_batch(client, args.backend, args.model, year,
                                      [(sid, model_texts[sid])], args.prompt, known_orgs,
-                                     page_counts, backend_state, page_ranges).get(sid)
+                                     page_counts, backend_state, page_ranges,
+                                     hints={sid: " ".join(hint)} if hint else None).get(sid)
             except Exception as e:                   # noqa: BLE001
                 log(f"  ! Segment {sid}: Nachfrage fehlgeschlagen ({e}), altes Ergebnis bleibt")
                 continue
@@ -608,14 +795,36 @@ if __name__ == "__main__":
                 log(f"  ! Segment {sid}: fehlt in der Nachfrage-Antwort, altes Ergebnis bleibt")
                 continue
             meta["id"] = sid
+            old = done[sid]
             if foreign:
                 meta["_foreign_blocks"] = foreign
+            elif unsigned or edge:
+                # Nur übernehmen, wenn die Nachfrage die Lücke schließt, ohne
+                # anderes zu verlieren; sonst bleibt das alte Ergebnis.
+                gained_sig = unsigned and (len(missing_signatories(meta, plain_texts.get(sid, "")))
+                                           < len(unsigned))
+                gained_iss = edge and any(i.get("role") == "issuer" for i in meta.get("issuers") or [])
+                if not (gained_sig or gained_iss):
+                    meta = dict(old)
+                for flag in ("_foreign_blocks", "_retried_missing"):
+                    if old.get(flag):
+                        meta[flag] = old[flag]
+                if unsigned:
+                    meta["_retried_signatory"] = True
+                if edge:
+                    meta["_retried_issuer"] = [text for _, text in edge]
             else:
                 meta["_retried_missing"] = True
             done[sid] = meta
             append_checkpoint(ckpt_path, [meta])
-            why = f"vorher fremd: {', '.join(foreign)}" if foreign else "fehlte in der Antwort"
-            log(f"    Segment {sid} ({why}): \"{meta.get('title', '')[:60]}\"")
+            why = (f"vorher fremd: {', '.join(foreign)}" if foreign
+                   else "; ".join(filter(None, [
+                       f"Unterzeichner fehlten: {', '.join(unsigned)}" if unsigned else "",
+                       f"Gruppe am Rand: {', '.join(t for _, t in edge)}" if edge else ""]))
+                   or "fehlte in der Antwort")
+            issuers = [i.get("surface") for i in meta.get("issuers") or [] if i.get("role") == "issuer"]
+            log(f"    Segment {sid} ({why}): \"{meta.get('title', '')[:50]}\" -> "
+                f"Herausgeber {', '.join(issuers) or '-'}")
 
     log(f"Fertig in {fmt_elapsed(time.monotonic() - run_start)}."
         + (f" {failed_batches} Batch(es) ohne Ergebnis." if failed_batches else ""))
@@ -633,11 +842,26 @@ if __name__ == "__main__":
     for seg in segments:
         meta = dict(done.get(seg["id"], {"id": seg["id"], **empty}))
         meta.pop("id", None)
+        if args.prompt != "v1":
+            meta = normalize_record(meta)
+            if meta.get("_date_dropped"):
+                log(f"  Datum prüfen: Segment {seg['id']} hatte \"{meta['_date_dropped']}\" "
+                    f"ohne Datumsart, verworfen (Ereignis im Text oder falsche Art?)")
+            meta = add_received_date(meta, stamp_dates(page_blocks, seg["start_page"], seg["end_page"]),
+                                     year)
+            if meta.get("_date_from_stamp"):
+                log(f"  Segment {seg['id']}: Stempeldatum {meta['_date_from_stamp']['date_iso']} "
+                    f"war als Datum des Blatts eingetragen - jetzt Eingangsdatum")
         results.append({**seg, **meta})
+    received = [r for r in results if r.get("received_date")]
+    if received:
+        log(f"Eingangsdatum aus Stempel: {len(received)} von {len(results)} Segmenten"
+            + (f", davon {sum(r['received_year_uncertain'] for r in received)} mit unsicherem Jahr"
+               if any(r["received_year_uncertain"] for r in received) else ""))
 
     # ------------------------------------------------------------ Belegprüfung
     grounding = None
-    if args.prompt == "v2":
+    if args.prompt != "v1":
         checked = 0
         flagged = []
         for r in results:
@@ -656,6 +880,16 @@ if __name__ == "__main__":
         if len(flagged) > 15:
             log(f"  ... und {len(flagged) - 15} weitere, vollständig in der Ausgabedatei")
 
+    # ------------------------------------------------- Zuordnung zur Normdatei
+    # Erst nach der Belegprüfung: Das Zusammenlegen von Kopfleiste und Impressum
+    # derselben Organisation vereinigt deren Belegblöcke.
+    if args.prompt != "v1" and registry_path.is_file():
+        doc = {"segments": results}
+        unresolved = org_match.annotate(doc, registry)
+        if unresolved:
+            log(f"Normdatei: {len(unresolved)} Herausgeber-Schreibweise(n) ohne Eintrag: "
+                + "; ".join(unresolved))
+
     out_doc = {
         "source_pdf": pdf_path.name,
         "created": datetime.now().isoformat(),
@@ -665,6 +899,7 @@ if __name__ == "__main__":
         "prompt_version": args.prompt,
         "batch_size": args.batch_size,
         "grounding": grounding,
+        "organizations": registry_path.name if registry_path.is_file() else None,
         "segmentation_hints": hints,
         "segments": results,
     }
